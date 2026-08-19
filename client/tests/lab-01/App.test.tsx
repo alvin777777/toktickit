@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import App from "../../src/App.js";
+import * as api from "../../src/api.js";
 
 describe("App", () => {
   // WORKED EXAMPLE — provided for you.
@@ -9,9 +10,20 @@ describe("App", () => {
     expect(screen.getByText(/TokTickIT/i)).toBeInTheDocument();
   });
 
-  // Issue 4 — write these yourself. Hint: mock the api module with
-  // vi.spyOn(api, "checkSystem").mockResolvedValue(...) / .mockRejectedValue(...)
-  // then click the button and assert the Online list / Offline message.
+  // Issue 2 — the health check drives Online/Offline; categories arrive in Issue 4.
+  it("shows an Offline error message when the API is unavailable", async () => {
+    vi.spyOn(api, "checkSystem").mockRejectedValue(new Error("network error"));
+    render(<App />);
+
+    fireEvent.click(screen.getByText("Check System"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Offline/i)).toBeInTheDocument();
+      expect(screen.getByText(/Unable to connect to TokTickIT API/i)).toBeInTheDocument();
+    });
+  });
+
+  // Issue 4 — write this yourself once GET /api/categories is implemented.
+  // Hint: vi.spyOn(api, "checkSystem").mockResolvedValue({ online: true, categories: [...] })
   it.todo("shows Online and the seeded categories on success");
-  it.todo("shows an Offline error message when the API is unavailable");
 });
