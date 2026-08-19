@@ -9,7 +9,7 @@
 | [#5](https://github.com/alvin777777/toktickit/pull/5) | feature/1-project-foundation | Changes requested → addressed via comment, merged |
 | [#6](https://github.com/alvin777777/toktickit/pull/6) | feature/2-health-check | Approved ("LGTM"), merged |
 | [#7](https://github.com/alvin777777/toktickit/pull/7) | feature/3-category-seed | Approved, merged |
-| | feature/4-category-list | |
+| [#8](https://github.com/alvin777777/toktickit/pull/8) | feature/4-category-list | Approved ("LGTM"), merged |
 
 ### PR #5 — reviewer comment I received
 > This PR mostly covers Issue #1 foundation requirements: React/Vite/TypeScript, Bootstrap,
@@ -46,6 +46,17 @@ No changes requested this time — approved directly, so there was nothing to fi
 >
 > The category API endpoint and Supertest response test are Issue #4 scope, so I don't see them as
 > blockers here.
+
+Approved directly — nothing to fix or respond to.
+
+### PR #8 — reviewer comment I received
+> LGTM. This PR correctly covers Issue #4, not Issue #3. It adds `GET /api/categories`, retrieves
+> categories from PostgreSQL through Prisma, orders them by `id`, returns only `{ id, name }`, adds
+> a Supertest test for the API response, updates `checkSystem()` to fetch real categories, and adds
+> a Vitest success-state test for displaying the category list.
+>
+> Issue #3 was already covered by PR #7 with the Prisma model, migration, and idempotent seed. I
+> don't see any blocker for this PR.
 
 Approved directly — nothing to fix or respond to.
 
