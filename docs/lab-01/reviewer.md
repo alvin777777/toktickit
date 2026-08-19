@@ -7,7 +7,7 @@
 | PR | Branch | Reviewer verdict |
 |----|--------|------------------|
 | [#5](https://github.com/alvin777777/toktickit/pull/5) | feature/1-project-foundation | Changes requested → addressed via comment, merged |
-| | feature/2-health-check | |
+| [#6](https://github.com/alvin777777/toktickit/pull/6) | feature/2-health-check | Approved ("LGTM"), merged |
 | | feature/3-category-seed | |
 | | feature/4-category-list | |
 
@@ -32,6 +32,11 @@
 > breakdown and dependency order (Issue 1 → Issue 2). Will ping you again once #2's PR is up.
 
 See: https://github.com/alvin777777/toktickit/pull/5#issuecomment-5341969426
+
+### PR #6 — reviewer comment I received
+> LGTM
+
+No changes requested this time — approved directly, so there was nothing to fix or respond to.
 
 ## Pull Requests I reviewed for my partner
 My comment: <...>
