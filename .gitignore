@@ -12,3 +12,6 @@ server/prisma/*.db
 # logs & OS
 *.log
 .DS_Store
+
+# local IDE/agent config
+.claude/
