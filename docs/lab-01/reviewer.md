@@ -8,7 +8,7 @@
 |----|--------|------------------|
 | [#5](https://github.com/alvin777777/toktickit/pull/5) | feature/1-project-foundation | Changes requested → addressed via comment, merged |
 | [#6](https://github.com/alvin777777/toktickit/pull/6) | feature/2-health-check | Approved ("LGTM"), merged |
-| | feature/3-category-seed | |
+| [#7](https://github.com/alvin777777/toktickit/pull/7) | feature/3-category-seed | Approved, merged |
 | | feature/4-category-list | |
 
 ### PR #5 — reviewer comment I received
@@ -37,6 +37,17 @@ See: https://github.com/alvin777777/toktickit/pull/5#issuecomment-5341969426
 > LGTM
 
 No changes requested this time — approved directly, so there was nothing to fix or respond to.
+
+### PR #7 — reviewer comment I received
+> LGTM. This PR covers Issue #3: the Prisma `Category` model has `id`, unique `name`, and
+> `createdAt`; the migration creates the `Category` table with a unique name index; the seed
+> inserts the four required categories using `upsert`, so it is safe to run multiple times; and no
+> database credentials are committed.
+>
+> The category API endpoint and Supertest response test are Issue #4 scope, so I don't see them as
+> blockers here.
+
+Approved directly — nothing to fix or respond to.
 
 ## Pull Requests I reviewed for my partner
 My comment: <...>

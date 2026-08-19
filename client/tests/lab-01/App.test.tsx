@@ -23,7 +23,27 @@ describe("App", () => {
     });
   });
 
-  // Issue 4 — write this yourself once GET /api/categories is implemented.
-  // Hint: vi.spyOn(api, "checkSystem").mockResolvedValue({ online: true, categories: [...] })
-  it.todo("shows Online and the seeded categories on success");
+  // Issue 4 — the category list comes from the API, not hard-coded values.
+  it("shows Online and the seeded categories on success", async () => {
+    vi.spyOn(api, "checkSystem").mockResolvedValue({
+      online: true,
+      categories: [
+        { id: 1, name: "Account and Access" },
+        { id: 2, name: "Hardware" },
+        { id: 3, name: "Software" },
+        { id: 4, name: "Network" },
+      ],
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByText("Check System"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Online/i)).toBeInTheDocument();
+      expect(screen.getByText("Account and Access")).toBeInTheDocument();
+      expect(screen.getByText("Hardware")).toBeInTheDocument();
+      expect(screen.getByText("Software")).toBeInTheDocument();
+      expect(screen.getByText("Network")).toBeInTheDocument();
+    });
+  });
 });
