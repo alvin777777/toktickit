@@ -14,12 +14,9 @@ app.use(express.json());
 
 // ---------------------------------------------------------------------------
 // Issue 2 — API health check
-// Make the test in tests/lab-01/health.test.ts pass.
-// It must return HTTP 200 with JSON: { status: "ok", service: "TokTickIT API" }
 // ---------------------------------------------------------------------------
 app.get("/api/health", (_req: Request, res: Response) => {
-  // TODO(Issue 2): replace this stub with the required 200 response.
-  res.status(501).json({ error: "Not implemented yet" });
+  res.status(200).json({ status: "ok", service: "TokTickIT API" });
 });
 
 // ---------------------------------------------------------------------------
