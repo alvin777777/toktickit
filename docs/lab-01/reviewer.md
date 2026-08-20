@@ -1,7 +1,7 @@
 # Lab 1 — Peer Review Record
 
-**Author:** <your name> — <student id> — GitHub: @alvin777777
-**Peer reviewer:** <partner name> — <student id> — GitHub: @Ohmmykung09
+**Author:** ไอโว ปีเตอร์ อัลวิน รันเน่ — 67070501051 — GitHub: @alvin777777
+**Peer reviewer:** ทิฐินันท์ สอบกิ่ง — 67070501018 — GitHub: @Ohmmykung09
 
 ## Pull Requests I authored (reviewed by my partner)
 | PR | Branch | Reviewer verdict |
