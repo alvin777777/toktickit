@@ -16,3 +16,6 @@ server/prisma/*.db
 
 # local IDE/agent config
 .claude/
+
+# personal submission draft (not part of the required repo structure)
+LAB1_REPORT_DRAFT.md
