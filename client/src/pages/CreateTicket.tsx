@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  AttachmentError,
   Category,
   RelatedSystem,
   TicketValidationError,
@@ -41,6 +42,7 @@ export default function CreateTicket() {
   const [apiError, setApiError] = useState("");
   const [stage, setStage] = useState<FormStage>("form");
   const [successTicketNumber, setSuccessTicketNumber] = useState("");
+  const [successAttachmentErrors, setSuccessAttachmentErrors] = useState<AttachmentError[]>([]);
 
   useEffect(() => {
     Promise.all([getCategories(), getRelatedSystems()])
@@ -56,21 +58,32 @@ export default function CreateTicket() {
     const picked = Array.from(e.target.files ?? []);
     e.target.value = ""; // allow re-picking the same file name after removing it
 
+    // Accumulate locally and commit once — using `attachments.length`/setAttachments per file
+    // inside this loop would read the same stale count on every iteration (state doesn't update
+    // until after the handler returns), letting a single multi-select bypass the 5-file cap.
+    let pickError = "";
+    const accepted: PendingAttachment[] = [];
+    let count = attachments.length;
+
     for (const file of picked) {
-      if (attachments.length >= MAX_ATTACHMENTS) {
-        setAttachmentPickError(`You can attach at most ${MAX_ATTACHMENTS} files.`);
+      if (count >= MAX_ATTACHMENTS) {
+        pickError = `You can attach at most ${MAX_ATTACHMENTS} files.`;
         break;
       }
       if (!ALLOWED_TYPES.has(file.type)) {
-        setAttachmentPickError(`"${file.name}" is not an allowed file type (JPG, PNG, WEBP, PDF only).`);
+        pickError = `"${file.name}" is not an allowed file type (JPG, PNG, WEBP, PDF only).`;
         continue;
       }
       if (file.size > MAX_FILE_BYTES) {
-        setAttachmentPickError(`"${file.name}" is larger than 5 MB.`);
+        pickError = `"${file.name}" is larger than 5 MB.`;
         continue;
       }
-      setAttachments((prev) => [...prev, { file }]);
+      accepted.push({ file });
+      count += 1;
     }
+
+    if (accepted.length > 0) setAttachments((prev) => [...prev, ...accepted]);
+    if (pickError) setAttachmentPickError(pickError);
   }
 
   function removeAttachment(index: number) {
@@ -88,6 +101,7 @@ export default function CreateTicket() {
     setApiError("");
     setStage("form");
     setSuccessTicketNumber("");
+    setSuccessAttachmentErrors([]);
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -121,6 +135,7 @@ export default function CreateTicket() {
         attachments: attachments.map((a) => a.file),
       });
       setSuccessTicketNumber(result.ticketNumber);
+      setSuccessAttachmentErrors(result.attachmentErrors); // BR-15 — surface partial upload failures
       setStage("success");
     } catch (err) {
       if (err instanceof TicketValidationError) {
@@ -140,6 +155,20 @@ export default function CreateTicket() {
           <p className="mb-1">
             Your Ticket Number is <strong>{successTicketNumber}</strong>.
           </p>
+          {successAttachmentErrors.length > 0 && (
+            <div className="alert alert-warning mt-2 mb-0" role="alert">
+              <p className="mb-1 fw-semibold">
+                The ticket was saved, but {successAttachmentErrors.length === 1 ? "one attachment" : "some attachments"} could not be added:
+              </p>
+              <ul className="mb-0">
+                {successAttachmentErrors.map((e, i) => (
+                  <li key={i}>
+                    {e.filename} — {e.reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="d-flex gap-2 mt-3">
             <Link to="/tickets" className="btn btn-success">
               View My Tickets

@@ -24,4 +24,13 @@ describe("X-Requester-Id enforcement", () => {
       .field("summary", "x");
     expect(res.status).toBe(401);
   });
+
+  // Requested by review on PR #25 — non-integer/negative headers used to reach Prisma and 500.
+  it.each(["1.5", "Infinity", "-1", "0", "abc", "1e10"])(
+    "rejects a malformed X-Requester-Id (%s) with 401, not 500",
+    async (malformed) => {
+      const res = await request(app).post("/api/tickets").set("X-Requester-Id", malformed).field("summary", "x");
+      expect(res.status).toBe(401);
+    }
+  );
 });

@@ -119,4 +119,46 @@ describe("CreateTicket", () => {
 
     expect(await screen.findByText("TKT-2026-000001")).toBeInTheDocument();
   });
+
+  // Requested by review on PR #25 — selecting several valid files in one picker call used to
+  // bypass the 5-file cap because the loop read stale state on every iteration.
+  it("caps a single multi-file selection at 5 attachments", async () => {
+    mockRefData();
+    const user = userEvent.setup();
+    renderCreateTicket();
+    await screen.findByRole("option", { name: "Hardware" });
+
+    const files = Array.from(
+      { length: 6 },
+      (_, i) => new File([new Uint8Array(10)], `photo-${i}.png`, { type: "image/png" })
+    );
+    const input = screen.getByLabelText(/Attachments/i) as HTMLInputElement;
+    await user.upload(input, files);
+
+    expect(await screen.findByText(/at most 5 files/i)).toBeInTheDocument();
+    for (let i = 0; i < 5; i++) {
+      expect(screen.getByText(new RegExp(`photo-${i}\\.png`))).toBeInTheDocument();
+    }
+    expect(screen.queryByText(/photo-5\.png/)).not.toBeInTheDocument();
+  });
+
+  // Requested by review on PR #25 — BR-15's partial attachment failures must reach the requester.
+  it("shows which attachments failed alongside the success confirmation", async () => {
+    mockRefData();
+    vi.spyOn(api, "createTicket").mockResolvedValue({
+      id: 1,
+      ticketNumber: "TKT-2026-000002",
+      attachments: [{ id: 1, originalFilename: "ok.png", sizeBytes: 10 }],
+      attachmentErrors: [{ filename: "too-big.png", reason: "Exceeds 5 MB limit." }],
+    });
+    const user = userEvent.setup();
+    renderCreateTicket();
+
+    await fillValidForm(user);
+    await user.click(screen.getByRole("button", { name: /create ticket/i }));
+
+    expect(await screen.findByText("TKT-2026-000002")).toBeInTheDocument();
+    expect(screen.getByText(/too-big\.png/)).toBeInTheDocument();
+    expect(screen.getByText(/Exceeds 5 MB limit/)).toBeInTheDocument();
+  });
 });

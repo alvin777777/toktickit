@@ -15,9 +15,23 @@ const MAX_ATTACHMENTS_PER_TICKET = 5;
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 
 // Files are held in memory only long enough to validate + write the good ones under a generated
-// name (BR-17); the multer-level size cap here is just a generous safety net — the real 5 MB rule
-// is enforced per-file below so one oversized file doesn't abort the whole request (BR-15).
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+// name (BR-17). Both limits here are deliberately looser than the real rules (5 MB / 5 files) —
+// Multer aborts the request with its own error the instant a hard limit is hit, before our handler
+// runs, which would bypass the documented 400 validation response (BR-15/BR-16). We enforce the
+// real limits ourselves below so every rejection goes through the same response shape.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024, files: 20 },
+});
+
+// Converts a Multer error (e.g. pathologically many parts) into the same 400 shape as our own
+// validation errors, instead of falling through to Express's default error handler.
+function handleUploadError(err: unknown, _req: Request, res: Response, next: (err?: unknown) => void) {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ error: "Invalid attachment upload", fields: { attachments: err.message } });
+  }
+  next(err);
+}
 
 // The Express app is exported separately from app.listen() (see index.ts) so
 // Supertest can import `app` without opening a port. Do not merge these files.
@@ -87,10 +101,18 @@ app.get("/api/related-systems", async (_req: Request, res: Response) => {
 app.post(
   "/api/tickets",
   requireRequester,
-  upload.array("attachments", MAX_ATTACHMENTS_PER_TICKET),
+  upload.array("attachments"),
+  handleUploadError,
   async (req: Request, res: Response) => {
     const prisma = getPrisma();
     const fieldErrors: Record<string, string> = {};
+    const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+
+    // BR-16 — enforced here (not just via Multer's own limit) so exceeding it returns the same
+    // documented 400 validation shape as every other field error, rather than a Multer error.
+    if (files.length > MAX_ATTACHMENTS_PER_TICKET) {
+      fieldErrors.attachments = `You can attach at most ${MAX_ATTACHMENTS_PER_TICKET} files.`;
+    }
 
     const summary = String(req.body.summary ?? "").trim();
     const description = String(req.body.description ?? "").trim();
@@ -142,7 +164,6 @@ app.post(
       });
 
       // BR-15 — one bad file must not lose the Ticket or the other valid files.
-      const files = (req.files as Express.Multer.File[] | undefined) ?? [];
       const attachmentErrors: { filename: string; reason: string }[] = [];
       const savedAttachments = [];
 

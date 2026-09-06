@@ -81,4 +81,25 @@ describe("POST /api/tickets", () => {
     expect(res.body.attachmentErrors).toHaveLength(1);
     expect(res.body.attachmentErrors[0].filename).toBe("too-big.png");
   });
+
+  // Requested by review on PR #25 — Multer used to abort before this validation could run.
+  it("rejects more than 5 attachments with a 400 field error, not a Multer crash (BR-16)", async () => {
+    const tinyFile = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    let req = request(app)
+      .post("/api/tickets")
+      .set("X-Requester-Id", String(requesterId))
+      .field("categoryId", String(categoryId))
+      .field("relatedSystemId", String(relatedSystemId))
+      .field("summary", "Too many attachments")
+      .field("description", "Sending six files should be a clean validation error.")
+      .field("requestedPriority", "LOW");
+
+    for (let i = 0; i < 6; i++) {
+      req = req.attach("attachments", tinyFile, { filename: `file-${i}.png`, contentType: "image/png" });
+    }
+    const res = await req;
+
+    expect(res.status).toBe(400);
+    expect(res.body.fields).toHaveProperty("attachments");
+  });
 });
