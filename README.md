@@ -29,6 +29,9 @@ toktickit/
 ├── docs/
 │   ├── lab-01/         ai_use.md, reviewer.md, tests.md
 │   └── lab-02/         specification.md, api-spec.md, ui-spec.md, tests.md, reviewer.md, ai-use.md
+├── e2e/                Playwright E2E + responsive/visual QA (lab-02/)
+├── artifacts/
+│   └── lab-02/screenshots/   desktop/tablet/mobile screenshots from the E2E suite
 ├── .gitignore
 └── README.md
 ```
@@ -101,6 +104,22 @@ one of the seeded requesters (this is a Lab 2 testing mechanism, not real login;
 cd server && npm test
 cd client && npm test
 ```
+
+## 7. Run the E2E / responsive-visual suite (Lab 2)
+
+Requires both dev servers from step 5 running, and the DB seeded (step 4).
+
+```bash
+cd e2e
+npm install
+npx playwright install chromium   # first time only
+npm test
+```
+
+This runs `e2e/lab-02/requester-ticket-flow.spec.ts` (full create → find → open flow, plus
+cross-Requester isolation) and `e2e/lab-02/responsive.spec.ts` (checks for horizontal scrolling
+and saves screenshots to `artifacts/lab-02/screenshots/`) at desktop, tablet, and mobile
+viewport widths.
 
 ## Git workflow
 

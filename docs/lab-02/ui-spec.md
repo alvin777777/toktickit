@@ -134,12 +134,25 @@ States:
 - Badges and error states never rely on color alone — text/icon always accompanies the color.
 - Dropdowns and dialogs are operable with keyboard only (Tab/Enter/Escape).
 
-## 8. Visual Inspection Checklist (fill in during Issue 6)
+## 8. Visual Inspection Checklist
 
-- [ ] No clipped labels or truncated buttons at any breakpoint
-- [ ] No overlapping validation messages
-- [ ] No unintended horizontal scrolling at 375px width
-- [ ] Priority/Status badges use consistent colors across My Tickets and Ticket Detail
-- [ ] Editable vs read-only fields are visually distinguishable at a glance
-- [ ] Screenshots captured: `artifacts/lab-02/screenshots/{create-ticket,my-tickets,ticket-detail}/`
-      at desktop, tablet, and mobile widths
+Completed in Issue 6 via `e2e/lab-02/responsive.spec.ts` (automated `scrollWidth` check plus
+per-viewport layout assertions — table-vs-card visibility on My Tickets, field-row column-count
+via bounding-box comparison on Create Ticket/Ticket Detail — one run per viewport) and manual
+review of the resulting screenshots. Peer review on PR #28 caught two real bugs the first pass
+missed — both fixed and now covered by assertions, not just eyeballed screenshots:
+- My Tickets was switching from cards to its table at the `md` breakpoint (768px) instead of `lg`
+  (992px), so the tablet viewport showed the dense desktop table instead of cards.
+- Create Ticket and Ticket Detail's 3-field row used `col-md-4`, giving 3 columns already at 768px
+  instead of 2 on tablet (768-991px) per §6 — changed to `col-md-6 col-lg-4`.
+While re-verifying visually after those fixes, also found and fixed the My Tickets filter row
+clipping its own labels at tablet width (5 columns packed into `col-md-*` at 768px) — restructured
+to 2-per-row below `lg`.
+
+- [x] No clipped labels or truncated buttons at any breakpoint — confirmed visually on all 9 screenshots (including the filter-row fix above)
+- [x] No overlapping validation messages — Create Ticket reviewed at all 3 widths
+- [x] No unintended horizontal scrolling at any width — automated check (`document.documentElement.scrollWidth <= clientWidth`) passes for all 3 screens × 3 viewports (9/9, see RESP-01 in `tests.md`)
+- [x] Priority/Status badges use consistent colors across My Tickets and Ticket Detail — same `PRIORITY_BADGE` map used in both
+- [x] Tablet shows 2 columns where desktop has 3 (Create Ticket, Ticket Detail) and cards-not-table (My Tickets) — asserted per viewport in `responsive.spec.ts`, not just screenshotted
+- [x] Editable vs read-only fields are visually distinguishable at a glance — read-only fields use the ivory `#F3F1EA` background consistently
+- [x] Screenshots captured: `artifacts/lab-02/screenshots/{create-ticket,my-tickets,ticket-detail}/{desktop,tablet,mobile}.png` (9 files)

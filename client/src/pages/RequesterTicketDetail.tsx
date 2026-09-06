@@ -112,48 +112,73 @@ export default function RequesterTicketDetail() {
       <h1 className="h4 mb-3">Ticket Details</h1>
 
       <div className="row g-3 mb-3">
-        <div className="col-md-4">
-          <label className="form-label fw-semibold small">Ticket No.</label>
-          <input className="form-control" style={readonlyField} readOnly value={ticket.ticketNumber} />
-        </div>
-        <div className="col-md-4">
-          <label className="form-label fw-semibold small">Ticket Date</label>
+        <div className="col-md-6 col-lg-4">
+          <label htmlFor="detail-ticket-number" className="form-label fw-semibold small">
+            Ticket No.
+          </label>
           <input
+            id="detail-ticket-number"
+            className="form-control"
+            style={readonlyField}
+            readOnly
+            value={ticket.ticketNumber}
+          />
+        </div>
+        <div className="col-md-6 col-lg-4">
+          <label htmlFor="detail-ticket-date" className="form-label fw-semibold small">
+            Ticket Date
+          </label>
+          <input
+            id="detail-ticket-date"
             className="form-control"
             style={readonlyField}
             readOnly
             value={new Date(ticket.ticketDate).toLocaleString()}
           />
         </div>
-        <div className="col-md-4">
-          <label className="form-label fw-semibold small">Requester</label>
-          <input className="form-control" style={readonlyField} readOnly value={requester?.name ?? ""} />
-        </div>
-        <div className="col-md-4">
-          <label className="form-label fw-semibold small">Category</label>
+        <div className="col-md-6 col-lg-4">
+          <label htmlFor="detail-requester" className="form-label fw-semibold small">
+            Requester
+          </label>
           <input
+            id="detail-requester"
+            className="form-control"
+            style={readonlyField}
+            readOnly
+            value={requester?.name ?? ""}
+          />
+        </div>
+        <div className="col-md-6 col-lg-4">
+          <label htmlFor="detail-category" className="form-label fw-semibold small">
+            Category
+          </label>
+          <input
+            id="detail-category"
             className="form-control"
             style={readonlyField}
             readOnly
             value={categories.find((c) => c.id === ticket.categoryId)?.name ?? "—"}
           />
         </div>
-        <div className="col-md-4">
-          <label className="form-label fw-semibold small">Related System</label>
+        <div className="col-md-6 col-lg-4">
+          <label htmlFor="detail-related-system" className="form-label fw-semibold small">
+            Related System
+          </label>
           <input
+            id="detail-related-system"
             className="form-control"
             style={readonlyField}
             readOnly
             value={relatedSystems.find((s) => s.id === ticket.relatedSystemId)?.name ?? "—"}
           />
         </div>
-        <div className="col-md-4">
+        <div className="col-md-6 col-lg-4">
           <label className="form-label fw-semibold small">Requested Priority</label>
           <div>
             <span className={`badge ${PRIORITY_BADGE[ticket.requestedPriority]}`}>{ticket.requestedPriority}</span>
           </div>
         </div>
-        <div className="col-md-4">
+        <div className="col-md-6 col-lg-4">
           <label className="form-label fw-semibold small">Current Status</label>
           <div>
             <span className="badge bg-info text-dark">{ticket.currentStatus}</span>
@@ -162,13 +187,30 @@ export default function RequesterTicketDetail() {
       </div>
 
       <div className="mb-3">
-        <label className="form-label fw-semibold small">Summary</label>
-        <input className="form-control" style={readonlyField} readOnly value={ticket.summary} />
+        <label htmlFor="detail-summary" className="form-label fw-semibold small">
+          Summary
+        </label>
+        <input
+          id="detail-summary"
+          className="form-control"
+          style={readonlyField}
+          readOnly
+          value={ticket.summary}
+        />
       </div>
 
       <div className="mb-3">
-        <label className="form-label fw-semibold small">Description</label>
-        <textarea className="form-control" style={readonlyField} readOnly rows={4} value={ticket.description} />
+        <label htmlFor="detail-description" className="form-label fw-semibold small">
+          Description
+        </label>
+        <textarea
+          id="detail-description"
+          className="form-control"
+          style={readonlyField}
+          readOnly
+          rows={4}
+          value={ticket.description}
+        />
       </div>
 
       <AttachmentSection

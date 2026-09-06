@@ -10,7 +10,7 @@
 | [#24](https://github.com/alvin777777/toktickit/pull/24) | feature/6-dev-requester-context | Changes requested (UI-spec mismatch + missing tests) → all fixed, approved ("LGTM"), merged |
 | [#25](https://github.com/alvin777777/toktickit/pull/25) | feature/7-create-ticket | Changes requested (4 edge-case bugs) → all fixed, approved ("LGTM kub"), merged |
 | [#26](https://github.com/alvin777777/toktickit/pull/26) | feature/8-my-tickets | Changes requested (3 edge-case bugs) → all fixed, approved ("LGTM"), merged |
-| | feature/9-ticket-detail-attachments | |
+| [#27](https://github.com/alvin777777/toktickit/pull/27) | feature/9-ticket-detail-attachments | Changes requested (3 missing contract fields) → all fixed, approved ("LGTM"), merged |
 | | feature/10-responsive-qa-release | |
 
 (Fill in each row's comment/response as PRs are reviewed — same format as docs/lab-01/reviewer.md.)
@@ -97,6 +97,26 @@ and a hard-coded `10` instead of the real `pageSize`, giving the wrong range on 
 > added a request-id ref so a stale response can never overwrite a newer one's results; fixed the
 > range math to use the real `pageSize` from the API. 23 server + 23 client tests pass.
 > Re-requesting review.
+
+Partner's response: "LGTM"
+
+Outcome: fixed and merged.
+
+### PR #27 — reviewer comment I received
+> Requesting changes because the Ticket Detail/Attachment implementation still misses required
+> contract fields: the detail header omits several read-only fields from the UI spec, attachment
+> metadata responses omit ticketId from the API contract, and the attachment list does not show
+> uploaded dates as required.
+
+Specifically (inline comments): the header was missing Requester, Category, and Related System
+(ui-spec.md §5.5 requires them alongside Ticket No./Date/Priority/Status); `serializeAttachment`
+omitted `ticketId`, which api-spec.md §8 documents as part of the metadata shape; and the
+attachment list never showed `uploadedAt` for either active or removed items.
+
+### How I responded
+> Thanks — all 3 fixed: added Requester/Category/Related System to the header; added `ticketId` to
+> the attachment serializer and type; added the uploaded date display for both active and removed
+> attachments. 34 server + 30 client tests pass. Re-requesting review.
 
 Partner's response: "LGTM"
 

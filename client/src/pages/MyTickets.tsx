@@ -117,7 +117,7 @@ export default function MyTickets() {
 
       {!showEmpty && (
         <div className="row g-2 mb-3">
-          <div className="col-md-4">
+          <div className="col-12 col-lg-4">
             <input
               type="search"
               className="form-control"
@@ -130,7 +130,7 @@ export default function MyTickets() {
               aria-label="Search tickets"
             />
           </div>
-          <div className="col-md-3">
+          <div className="col-6 col-lg-3">
             <select
               className="form-select"
               aria-label="Filter by category"
@@ -148,7 +148,7 @@ export default function MyTickets() {
               ))}
             </select>
           </div>
-          <div className="col-md-2">
+          <div className="col-6 col-lg-2">
             <select
               className="form-select"
               aria-label="Filter by requested priority"
@@ -164,7 +164,7 @@ export default function MyTickets() {
               <option value="HIGH">High</option>
             </select>
           </div>
-          <div className="col-md-2">
+          <div className="col-6 col-lg-2">
             <select
               className="form-select"
               aria-label="Filter by status"
@@ -178,7 +178,7 @@ export default function MyTickets() {
               <option value="NEW">New</option>
             </select>
           </div>
-          <div className="col-md-1">
+          <div className="col-6 col-lg-1">
             <button className="btn btn-outline-secondary w-100" onClick={clearFilters}>
               Clear
             </button>
@@ -223,7 +223,7 @@ export default function MyTickets() {
 
       {showList && (
         <>
-          <div className="table-responsive d-none d-md-block">
+          <div className="table-responsive d-none d-lg-block" data-testid="my-tickets-table">
             <table className="table">
               <thead>
                 <tr>
@@ -265,7 +265,7 @@ export default function MyTickets() {
           </div>
 
           {/* Mobile card layout (ui-spec.md §5.4) */}
-          <div className="d-md-none">
+          <div className="d-lg-none" data-testid="my-tickets-cards">
             {items.map((t) => (
               <div
                 key={t.id}
