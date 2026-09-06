@@ -65,7 +65,7 @@ default `createdAt`), `sortDir` (`asc`|`desc`, default `desc`), `page` (default 
 ```json
 {
   "items": [{ "id": 42, "ticketNumber": "TKT-2026-000042", "summary": "...", "categoryId": 2,
-              "requestedPriority": "MEDIUM", "currentStatus": "NEW", "createdAt": "..." }],
+              "requestedPriority": "MEDIUM", "currentStatus": "NEW", "createdAt": "...", "updatedAt": "..." }],
   "page": 1, "pageSize": 10, "totalItems": 42, "totalPages": 5
 }
 ```

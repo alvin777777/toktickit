@@ -74,8 +74,9 @@ reshaping Tickets, Attachments, or ownership checks.
 - **BR-07** Ticket Description is required, trimmed, and must be 10–2000 characters after trimming.
 - **BR-08** Requested Priority is required and must be one of `LOW`, `MEDIUM`, `HIGH`.
 - **BR-09** The Development Requester selector loads only Requesters with `isActive = true`; an
-  inactive Requester never appears in the dropdown, and any API call presenting an inactive or
-  unknown requesterId is rejected as an ownership/validation failure (400).
+  inactive Requester never appears in the dropdown, and any API call presenting a missing, unknown,
+  or inactive `X-Requester-Id` is rejected the same way a missing session would be (401), consistent
+  across every Requester-scoped endpoint.
 - **BR-10** A Ticket belongs to exactly one Requester (the one selected at creation time); ownership
   never changes in Lab 2.
 - **BR-11** The My Tickets list only ever returns Tickets whose `requesterId` matches the current
@@ -220,6 +221,10 @@ call (a stand-in for the session that Lab 3's auth will provide).
 - **AC-20** Given a Requester switches to a different Development Requester via Change Requester,
   when the switch completes, then My Tickets reloads and shows only the newly selected Requester's
   Tickets.
+- **AC-21** Given a Create Ticket submission includes one attachment that fails server-side
+  validation (type/size/count) alongside one that is valid, when the Requester submits, then the
+  Ticket is still saved, the valid attachment is linked to it, and the response reports which
+  attachment failed and why (BR-15) rather than rejecting or silently dropping either one.
 
 ## 10. Definition of Done
 

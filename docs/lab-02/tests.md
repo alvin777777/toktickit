@@ -3,7 +3,7 @@
 ## 1. Test Strategy
 
 Tests are planned from `specification.md` before implementation (Test DD), then written failing and
-implemented against until green (TDD), per Issue. Every Acceptance Criterion (AC-01..AC-20) maps to
+implemented against until green (TDD), per Issue. Every Acceptance Criterion (AC-01..AC-21) maps to
 at least one row below. Status in the **Final** column starts as `Planned` and is updated to `Pass`
 as each Issue's tests are implemented and pass on `main`.
 
@@ -23,6 +23,9 @@ as each Issue's tests are implemented and pass on `main`.
 | API-09 | API | AC-14 | POST /api/tickets/:ticketNumber/attachments | 201, attachment linked to ticket | server/tests/lab-02/attachments.api.test.ts | Planned |
 | API-10 | API | AC-15, AC-16, BR-18 | DELETE attachment then GET download | Soft-removed; subsequent download returns 404 | server/tests/lab-02/attachments.api.test.ts | Planned |
 | API-11 | API | BR-09 | GET /api/requesters | Only isActive=true requesters returned | server/tests/lab-02/requesters.api.test.ts | Planned |
+| API-12 | API | BR-09 | Any Requester-scoped endpoint with missing/unknown/inactive X-Requester-Id | 401 consistently across endpoints | server/tests/lab-02/auth-context.api.test.ts | Planned |
+| API-13 | API | AC-21, BR-15 | POST /api/tickets with one valid + one invalid attachment | 201; ticket saved; valid attachment linked; response reports the failed one and why | server/tests/lab-02/create-ticket.api.test.ts | Planned |
+| API-14 | API | AC-13 | GET /api/tickets/:ticketNumber for the owning Requester | 200; returned fields and attachments match stored data | server/tests/lab-02/ticket-detail.api.test.ts | Planned |
 | UI-02 | UI | AC-17 | Requester Selection loading state | Skeleton shown before list appears | client/src/.../DevRequesterSelect.test.tsx | Planned |
 | UI-03 | UI | AC-18 | Requester Selection with zero active requesters | Empty state shown, no dropdown | client/src/.../DevRequesterSelect.test.tsx | Planned |
 | UI-04 | UI | AC-02 | Opening My Tickets with no Requester selected | Redirects to Requester Selection | client/src/.../RouteGuard.test.tsx | Planned |
@@ -59,7 +62,7 @@ as each Issue's tests are implemented and pass on `main`.
 | AC-10 | UI-11 |
 | AC-11 | API-07, UI-12 |
 | AC-12 | API-07, UI-13 |
-| AC-13 | API-08, UI-14, E2E-01 |
+| AC-13 | API-14, UI-14, E2E-01 |
 | AC-14 | API-09, UI-15 |
 | AC-15 | API-10, UI-16 |
 | AC-16 | API-10, UI-16 |
@@ -67,6 +70,7 @@ as each Issue's tests are implemented and pass on `main`.
 | AC-18 | UI-03 |
 | AC-19 | RESP-01 |
 | AC-20 | UI-17, E2E-02 |
+| AC-21 | API-13 |
 
 ## 4. Responsive and Visual Checklist
 
