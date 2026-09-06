@@ -7,6 +7,11 @@ export default defineConfig({
   testDir: ".",
   timeout: 30_000,
   retries: 0,
+  // Tests share one real dev-server + Postgres instance (not isolated per worker), so running
+  // several browser contexts concurrently against it caused intermittent timing flakes here.
+  // Single-worker is slower but reliable — this suite is a small, occasional QA run, not a CI
+  // suite optimizing for wall-clock time.
+  workers: 1,
   use: {
     baseURL: "http://localhost:5173",
     trace: "retain-on-failure",

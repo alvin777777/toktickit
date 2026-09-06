@@ -200,7 +200,7 @@ export default function CreateTicket() {
 
       <form onSubmit={handleSubmit} noValidate>
         <div className="row g-3 mb-3">
-          <div className="col-md-4">
+          <div className="col-md-6 col-lg-4">
             <label htmlFor="category" className="form-label fw-semibold">
               Category <span className="text-danger">*</span>
             </label>
@@ -221,7 +221,7 @@ export default function CreateTicket() {
             {fieldErrors.categoryId && <div className="invalid-feedback">{fieldErrors.categoryId}</div>}
           </div>
 
-          <div className="col-md-4">
+          <div className="col-md-6 col-lg-4">
             <label htmlFor="relatedSystem" className="form-label fw-semibold">
               Related System <span className="text-danger">*</span>
             </label>
@@ -244,7 +244,7 @@ export default function CreateTicket() {
             )}
           </div>
 
-          <div className="col-md-4">
+          <div className="col-md-6 col-lg-4">
             <label htmlFor="priority" className="form-label fw-semibold">
               Requested Priority <span className="text-danger">*</span>
             </label>

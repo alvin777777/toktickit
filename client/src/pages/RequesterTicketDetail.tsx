@@ -112,7 +112,7 @@ export default function RequesterTicketDetail() {
       <h1 className="h4 mb-3">Ticket Details</h1>
 
       <div className="row g-3 mb-3">
-        <div className="col-md-4">
+        <div className="col-md-6 col-lg-4">
           <label htmlFor="detail-ticket-number" className="form-label fw-semibold small">
             Ticket No.
           </label>
@@ -124,7 +124,7 @@ export default function RequesterTicketDetail() {
             value={ticket.ticketNumber}
           />
         </div>
-        <div className="col-md-4">
+        <div className="col-md-6 col-lg-4">
           <label htmlFor="detail-ticket-date" className="form-label fw-semibold small">
             Ticket Date
           </label>
@@ -136,7 +136,7 @@ export default function RequesterTicketDetail() {
             value={new Date(ticket.ticketDate).toLocaleString()}
           />
         </div>
-        <div className="col-md-4">
+        <div className="col-md-6 col-lg-4">
           <label htmlFor="detail-requester" className="form-label fw-semibold small">
             Requester
           </label>
@@ -148,7 +148,7 @@ export default function RequesterTicketDetail() {
             value={requester?.name ?? ""}
           />
         </div>
-        <div className="col-md-4">
+        <div className="col-md-6 col-lg-4">
           <label htmlFor="detail-category" className="form-label fw-semibold small">
             Category
           </label>
@@ -160,7 +160,7 @@ export default function RequesterTicketDetail() {
             value={categories.find((c) => c.id === ticket.categoryId)?.name ?? "—"}
           />
         </div>
-        <div className="col-md-4">
+        <div className="col-md-6 col-lg-4">
           <label htmlFor="detail-related-system" className="form-label fw-semibold small">
             Related System
           </label>
@@ -172,13 +172,13 @@ export default function RequesterTicketDetail() {
             value={relatedSystems.find((s) => s.id === ticket.relatedSystemId)?.name ?? "—"}
           />
         </div>
-        <div className="col-md-4">
+        <div className="col-md-6 col-lg-4">
           <label className="form-label fw-semibold small">Requested Priority</label>
           <div>
             <span className={`badge ${PRIORITY_BADGE[ticket.requestedPriority]}`}>{ticket.requestedPriority}</span>
           </div>
         </div>
-        <div className="col-md-4">
+        <div className="col-md-6 col-lg-4">
           <label className="form-label fw-semibold small">Current Status</label>
           <div>
             <span className="badge bg-info text-dark">{ticket.currentStatus}</span>

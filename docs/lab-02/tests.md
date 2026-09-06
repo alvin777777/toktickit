@@ -83,7 +83,9 @@ See `ui-spec.md` §8 — completed during Issue 6 alongside RESP-01, with screen
 ```bash
 cd server && npm test    # unit + API tests (Vitest + Supertest)
 cd client && npm test    # UI tests (Vitest + Testing Library)
-npx playwright test e2e/lab-02   # E2E + responsive screenshots
+cd e2e && npm test       # E2E + responsive screenshots (Playwright; requires both dev
+                          # servers running — see README.md §7). Equivalent to
+                          # `cd e2e && npx playwright test`.
 ```
 
 ## 6. Final Results
