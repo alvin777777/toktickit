@@ -10,9 +10,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Issue 3 — IT request categories
+// Issue 3 (Lab 1) — IT request categories
 model Category {
   id        Int      @id @default(autoincrement())
   name      String   @unique
+  createdAt DateTime @default(now())
+}
+
+// Lab 2 Issue 2 — Development Requester (testing mechanism, NOT authentication; see
+// docs/lab-02/specification.md BR-03/BR-09/BR-24).
+model RequesterUser {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 }

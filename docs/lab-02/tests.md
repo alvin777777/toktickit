@@ -22,13 +22,14 @@ as each Issue's tests are implemented and pass on `main`.
 | API-08 | API | AC-03, BR-22 | GET /api/tickets/:ticketNumber for non-owner | 404, identical to nonexistent ticket | server/tests/lab-02/ticket-detail.api.test.ts | Planned |
 | API-09 | API | AC-14 | POST /api/tickets/:ticketNumber/attachments | 201, attachment linked to ticket | server/tests/lab-02/attachments.api.test.ts | Planned |
 | API-10 | API | AC-15, AC-16, BR-18 | DELETE attachment then GET download | Soft-removed; subsequent download returns 404 | server/tests/lab-02/attachments.api.test.ts | Planned |
-| API-11 | API | BR-09 | GET /api/requesters | Only isActive=true requesters returned | server/tests/lab-02/requesters.api.test.ts | Planned |
+| API-11 | API | BR-09 | GET /api/requesters | Only isActive=true requesters returned | server/tests/lab-02/requesters.api.test.ts | Pass |
 | API-12 | API | BR-09 | Any Requester-scoped endpoint with missing/unknown/inactive X-Requester-Id | 401 consistently across endpoints | server/tests/lab-02/auth-context.api.test.ts | Planned |
 | API-13 | API | AC-21, BR-15 | POST /api/tickets with one valid + one invalid attachment | 201; ticket saved; valid attachment linked; response reports the failed one and why | server/tests/lab-02/create-ticket.api.test.ts | Planned |
 | API-14 | API | AC-13 | GET /api/tickets/:ticketNumber for the owning Requester | 200; returned fields and attachments match stored data | server/tests/lab-02/ticket-detail.api.test.ts | Planned |
-| UI-02 | UI | AC-17 | Requester Selection loading state | Skeleton shown before list appears | client/src/.../DevRequesterSelect.test.tsx | Planned |
-| UI-03 | UI | AC-18 | Requester Selection with zero active requesters | Empty state shown, no dropdown | client/src/.../DevRequesterSelect.test.tsx | Planned |
-| UI-04 | UI | AC-02 | Opening My Tickets with no Requester selected | Redirects to Requester Selection | client/src/.../RouteGuard.test.tsx | Planned |
+| UI-02 | UI | AC-17 | Requester Selection loading state | Skeleton row shown, dropdown hidden, Continue disabled | client/tests/lab-02/DevRequesterSelect.test.tsx | Pass |
+| UI-03 | UI | AC-18 | Requester Selection with zero active requesters | Empty state shown, no dropdown, Continue disabled | client/tests/lab-02/DevRequesterSelect.test.tsx | Pass |
+| UI-04 | UI | AC-02 | Opening My Tickets with no Requester selected | Redirects to Requester Selection | client/tests/lab-02/RouteGuard.test.tsx | Pass |
+| UI-18 | UI | FR-02 | Select a requester and click Continue | Context + localStorage updated; navigates to My Tickets | client/tests/lab-02/DevRequesterSelect.test.tsx | Pass |
 | UI-05 | UI | AC-04 | Submit Create Ticket with empty Summary | Field message shown, API not called | client/src/.../CreateTicket.test.tsx | Planned |
 | UI-06 | UI | AC-05 | Submit Create Ticket with empty Description | Field message shown, API not called | client/src/.../CreateTicket.test.tsx | Planned |
 | UI-07 | UI | AC-07 | Select an oversized/invalid-type file | Rejected client-side before any upload call | client/src/.../CreateTicket.test.tsx | Planned |
@@ -41,7 +42,7 @@ as each Issue's tests are implemented and pass on `main`.
 | UI-14 | UI | AC-13 | Ticket Detail header rendering | All fields read-only, match stored ticket | client/src/.../RequesterTicketDetail.test.tsx | Planned |
 | UI-15 | UI | AC-14 | Add attachment from Ticket Detail | New attachment appears without full reload | client/src/.../AttachmentSection.test.tsx | Planned |
 | UI-16 | UI | AC-15, AC-16 | Remove attachment with reason | Shown as removed w/ reason; no download link | client/src/.../AttachmentSection.test.tsx | Planned |
-| UI-17 | UI | AC-20 | Change Requester from the app shell | My Tickets reloads to the new Requester's data | client/src/.../RequesterContext.test.tsx | Planned |
+| UI-17 | UI | AC-20 | Change Requester from the app shell | Context + localStorage cleared; returns to /select | client/tests/lab-02/AppShell.test.tsx | Pass |
 | RESP-01 | Responsive/Visual | AC-19 | Desktop/tablet/mobile screenshots, all 3 screens | No clipping/overlap/horizontal scroll at any width | e2e/lab-02/responsive.spec.ts | Planned |
 | E2E-01 | E2E | AC-01, AC-13 | Full Requester flow | Select requester → create ticket → find in My Tickets → open Detail shows same data | e2e/lab-02/requester-ticket-flow.spec.ts | Planned |
 | E2E-02 | E2E | AC-03, AC-20 | Cross-Requester isolation | Requester B cannot see or open Requester A's ticket by URL | e2e/lab-02/requester-ticket-flow.spec.ts | Planned |

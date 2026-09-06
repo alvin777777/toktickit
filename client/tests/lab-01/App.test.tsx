@@ -1,19 +1,21 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import App from "../../src/App.js";
+// Lab 2 moved this UI from App.tsx (now the router root) into SystemStatusCard, unchanged
+// behavior — see docs/lab-02/specification.md §11. Same file, same assertions as Lab 1.
+import SystemStatusCard from "../../src/components/SystemStatusCard.js";
 import * as api from "../../src/api.js";
 
-describe("App", () => {
+describe("SystemStatusCard (formerly App)", () => {
   // WORKED EXAMPLE — provided for you.
   it("renders the TokTickIT heading", () => {
-    render(<App />);
+    render(<SystemStatusCard />);
     expect(screen.getByText(/TokTickIT/i)).toBeInTheDocument();
   });
 
   // Issue 2 — the health check drives Online/Offline; categories arrive in Issue 4.
   it("shows an Offline error message when the API is unavailable", async () => {
     vi.spyOn(api, "checkSystem").mockRejectedValue(new Error("network error"));
-    render(<App />);
+    render(<SystemStatusCard />);
 
     fireEvent.click(screen.getByText("Check System"));
 
@@ -34,7 +36,7 @@ describe("App", () => {
         { id: 4, name: "Network" },
       ],
     });
-    render(<App />);
+    render(<SystemStatusCard />);
 
     fireEvent.click(screen.getByText("Check System"));
 
