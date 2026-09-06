@@ -36,6 +36,10 @@ export default function RequesterSelect() {
     navigate("/tickets");
   }
 
+  // The form shape (label, control area, action row) stays constant across loading/loaded/empty
+  // per ui-spec.md §5.2 — only `error` replaces the whole thing with a recovery-focused callout.
+  const showFormShape = loadState !== "error";
+
   return (
     <div className="d-flex justify-content-center align-items-center min-vh-100" style={{ backgroundColor: "#F5F7F6" }}>
       <div className="card shadow-sm p-4" style={{ maxWidth: 480, width: "100%" }}>
@@ -53,12 +57,6 @@ export default function RequesterSelect() {
           </p>
         </div>
 
-        {loadState === "loading" && (
-          <div role="status" className="text-center text-muted py-3">
-            Loading development requesters…
-          </div>
-        )}
-
         {loadState === "error" && (
           <div className="alert alert-danger" role="alert">
             Unable to load development requesters. Please try again.
@@ -70,32 +68,42 @@ export default function RequesterSelect() {
           </div>
         )}
 
-        {loadState === "empty" && (
-          <div className="alert alert-warning" role="alert">
-            No active development requesters were found. Contact an administrator.
-          </div>
-        )}
-
-        {loadState === "loaded" && (
+        {showFormShape && (
           <>
             <label htmlFor="requester-select" className="form-label fw-semibold">
               Development Requester <span className="text-danger">*</span>
             </label>
-            <select
-              id="requester-select"
-              className="form-select mb-3"
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value ? Number(e.target.value) : "")}
-            >
-              <option value="" disabled>
-                Choose a requester…
-              </option>
-              {requesters.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
+
+            {loadState === "loading" && (
+              <div role="status" className="placeholder-glow mb-3">
+                <span className="placeholder col-12" style={{ height: 38, display: "block", borderRadius: 4 }} />
+                <span className="visually-hidden">Loading development requesters…</span>
+              </div>
+            )}
+
+            {loadState === "loaded" && (
+              <select
+                id="requester-select"
+                className="form-select mb-3"
+                value={selectedId}
+                onChange={(e) => setSelectedId(e.target.value ? Number(e.target.value) : "")}
+              >
+                <option value="" disabled>
+                  Choose a requester…
                 </option>
-              ))}
-            </select>
+                {requesters.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {loadState === "empty" && (
+              <div className="alert alert-warning mb-3" role="alert">
+                No active development requesters were found. Contact an administrator.
+              </div>
+            )}
 
             <div className="alert p-2 small mb-3" style={{ backgroundColor: "#EAF6EF", color: "#1B2B24" }}>
               Only active development requesters are shown.
@@ -105,7 +113,11 @@ export default function RequesterSelect() {
               <button className="btn btn-outline-secondary" disabled>
                 Cancel
               </button>
-              <button className="btn btn-success" disabled={!selectedId} onClick={handleContinue}>
+              <button
+                className="btn btn-success"
+                disabled={loadState !== "loaded" || !selectedId}
+                onClick={handleContinue}
+              >
                 Continue →
               </button>
             </div>
