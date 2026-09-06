@@ -156,3 +156,96 @@ export async function getMyTickets(requesterId: number, query: TicketListQuery):
   if (!res.ok) throw new Error("Unable to load tickets");
   return res.json();
 }
+
+// -----------------------------------------------------------------------------
+// Lab 2 Issue 5 — Requester Ticket Detail and Attachments (api-spec.md §6-10).
+// -----------------------------------------------------------------------------
+export interface AttachmentInfo {
+  id: number;
+  originalFilename: string;
+  sizeBytes: number;
+  mimeType: string;
+  uploadedAt: string;
+  removedAt: string | null;
+  removedReason: string | null;
+}
+
+export interface TicketDetail {
+  id: number;
+  ticketNumber: string;
+  ticketDate: string;
+  requesterId: number;
+  categoryId: number;
+  relatedSystemId: number;
+  summary: string;
+  description: string;
+  requestedPriority: "LOW" | "MEDIUM" | "HIGH";
+  currentStatus: "NEW";
+  attachments: AttachmentInfo[];
+}
+
+export async function getTicketDetail(requesterId: number, ticketNumber: string): Promise<TicketDetail | null> {
+  const res = await fetch(`${API_URL}/api/tickets/${encodeURIComponent(ticketNumber)}`, {
+    headers: { "X-Requester-Id": String(requesterId) },
+  });
+  if (res.status === 404) return null; // BR-22 — not found and not-owned look identical
+  if (!res.ok) throw new Error("Unable to load ticket");
+  return res.json();
+}
+
+// Thrown on 400 (attachment validation) so the UI can show what went wrong.
+export class AttachmentValidationError extends Error {
+  fields: Record<string, string>;
+  constructor(fields: Record<string, string>) {
+    super("Invalid attachment");
+    this.fields = fields;
+  }
+}
+
+export async function addAttachment(requesterId: number, ticketNumber: string, file: File): Promise<AttachmentInfo> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_URL}/api/tickets/${encodeURIComponent(ticketNumber)}/attachments`, {
+    method: "POST",
+    headers: { "X-Requester-Id": String(requesterId) },
+    body: form,
+  });
+  if (res.status === 400) {
+    const body = await res.json();
+    throw new AttachmentValidationError(body.fields ?? {});
+  }
+  if (!res.ok) throw new Error("Unable to add attachment");
+  return res.json();
+}
+
+export async function removeAttachment(
+  requesterId: number,
+  attachmentId: number,
+  reason: string
+): Promise<AttachmentInfo> {
+  const res = await fetch(`${API_URL}/api/attachments/${attachmentId}`, {
+    method: "DELETE",
+    headers: { "X-Requester-Id": String(requesterId), "Content-Type": "application/json" },
+    body: JSON.stringify({ reason }),
+  });
+  if (!res.ok) throw new Error("Unable to remove attachment");
+  return res.json();
+}
+
+// Downloads happen via header-authenticated fetch (a plain <a href> can't set X-Requester-Id),
+// then hands the browser a blob URL to save — same end result as a normal file download link.
+export async function downloadAttachment(requesterId: number, attachment: AttachmentInfo): Promise<void> {
+  const res = await fetch(`${API_URL}/api/attachments/${attachment.id}/download`, {
+    headers: { "X-Requester-Id": String(requesterId) },
+  });
+  if (!res.ok) throw new Error("Unable to download attachment");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = attachment.originalFilename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}

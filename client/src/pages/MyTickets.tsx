@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Category, TicketListItem, getCategories, getMyTickets } from "../api.js";
 import { useRequester } from "../context/RequesterContext.js";
 
@@ -15,6 +15,7 @@ const PRIORITY_BADGE: Record<string, string> = {
 // ui-spec.md §5.4 — My Tickets screen.
 export default function MyTickets() {
   const { requester } = useRequester();
+  const navigate = useNavigate();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -245,7 +246,7 @@ export default function MyTickets() {
               </thead>
               <tbody>
                 {items.map((t) => (
-                  <tr key={t.id}>
+                  <tr key={t.id} role="button" onClick={() => navigate(`/tickets/${t.ticketNumber}`)}>
                     <td>{t.ticketNumber}</td>
                     <td>{new Date(t.createdAt).toLocaleString()}</td>
                     <td>{t.summary}</td>
@@ -266,7 +267,12 @@ export default function MyTickets() {
           {/* Mobile card layout (ui-spec.md §5.4) */}
           <div className="d-md-none">
             {items.map((t) => (
-              <div key={t.id} className="card mb-2">
+              <div
+                key={t.id}
+                className="card mb-2"
+                role="button"
+                onClick={() => navigate(`/tickets/${t.ticketNumber}`)}
+              >
                 <div className="card-body">
                   <div className="d-flex justify-content-between">
                     <strong>{t.ticketNumber}</strong>
