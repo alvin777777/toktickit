@@ -1,8 +1,10 @@
 # TokTickIT
 
 TokTickIT (ตอกติ๊กกิต) is an IT service desk application, built incrementally across CPE 334 lab
-sprints. Lab 1 delivers a thin vertical slice — React UI → Express REST API → Prisma ORM →
-PostgreSQL — proving the full stack works together end to end.
+sprints. Lab 1 delivered a thin vertical slice — React UI → Express REST API → Prisma ORM →
+PostgreSQL — proving the full stack works together end to end. Lab 2 adds the Requester-facing
+ticketing MVP (Create Ticket, My Tickets, Ticket Detail, Attachments) behind a temporary
+Development Requester selector that stands in for real login until Lab 3.
 
 ## Tech stack
 
@@ -17,13 +19,19 @@ PostgreSQL — proving the full stack works together end to end.
 
 ```
 toktickit/
-├── client/            React + Vite frontend
+├── client/            React + Vite frontend (pages/, components/, context/)
 ├── server/             Express API, Prisma schema, seed
 │   ├── prisma/
 │   ├── src/
-│   └── tests/lab-01/
+│   └── tests/
+│       ├── lab-01/
+│       └── lab-02/
 ├── docs/
-│   └── lab-01/         ai_use.md, reviewer.md, tests.md
+│   ├── lab-01/         ai_use.md, reviewer.md, tests.md
+│   └── lab-02/         specification.md, api-spec.md, ui-spec.md, tests.md, reviewer.md, ai-use.md
+├── e2e/                Playwright E2E + responsive/visual QA (lab-02/)
+├── artifacts/
+│   └── lab-02/screenshots/   desktop/tablet/mobile screenshots from the E2E suite
 ├── .gitignore
 └── README.md
 ```
@@ -70,8 +78,8 @@ The defaults already match the Docker command above, so no editing is required f
 
 ```bash
 cd server
-npx prisma migrate dev --name init
-npm run prisma:seed
+npx prisma migrate dev   # applies all migrations, including Lab 2's RequesterUser table
+npm run prisma:seed      # idempotent — safe to re-run any time
 ```
 
 ## 5. Run the app locally
@@ -86,7 +94,9 @@ cd server && npm run dev
 cd client && npm run dev
 ```
 
-Open http://localhost:5173 in a browser, then click **Check System**.
+Open http://localhost:5173 in a browser. It redirects to **Select Development Requester** — pick
+one of the seeded requesters (this is a Lab 2 testing mechanism, not real login; see
+[docs/lab-02/specification.md](docs/lab-02/specification.md) BR-03) — then Continue into the app.
 
 ## 6. Run automated tests
 
@@ -95,8 +105,24 @@ cd server && npm test
 cd client && npm test
 ```
 
+## 7. Run the E2E / responsive-visual suite (Lab 2)
+
+Requires both dev servers from step 5 running, and the DB seeded (step 4).
+
+```bash
+cd e2e
+npm install
+npx playwright install chromium   # first time only
+npm test
+```
+
+This runs `e2e/lab-02/requester-ticket-flow.spec.ts` (full create → find → open flow, plus
+cross-Requester isolation) and `e2e/lab-02/responsive.spec.ts` (checks for horizontal scrolling
+and saves screenshots to `artifacts/lab-02/screenshots/`) at desktop, tablet, and mobile
+viewport widths.
+
 ## Git workflow
 
-This project follows a feature-branch → `lab1-staging` → `main` flow. See
-[docs/lab-01/reviewer.md](docs/lab-01/reviewer.md) for peer-review records and
-[docs/lab-01/tests.md](docs/lab-01/tests.md) for the test plan and evidence.
+This project follows a feature-branch → staging branch → `main` flow, one staging branch per lab
+(`lab1-staging`, `lab2-staging`, ...). See docs/lab-0N/reviewer.md for peer-review records and
+docs/lab-0N/tests.md for each sprint's test plan and evidence.

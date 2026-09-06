@@ -10,9 +10,85 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Issue 3 — IT request categories
+// Issue 3 (Lab 1) — IT request categories
 model Category {
   id        Int      @id @default(autoincrement())
   name      String   @unique
   createdAt DateTime @default(now())
+  tickets   Ticket[]
+}
+
+// Lab 2 Issue 2 — Development Requester (testing mechanism, NOT authentication; see
+// docs/lab-02/specification.md BR-03/BR-09/BR-24).
+model RequesterUser {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  tickets   Ticket[]
+}
+
+// Lab 2 Issue 3 — Related System (the specific service/device/platform a ticket is about).
+model RelatedSystem {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  tickets   Ticket[]
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TicketStatus {
+  NEW
+}
+
+// Per-year counter backing BR-01's ticket-number format (TKT-{year}-{6 digits}); incremented
+// atomically in one UPDATE per creation so numbers never collide under concurrent requests.
+model TicketSequence {
+  year      Int @id
+  lastValue Int @default(0)
+}
+
+model Ticket {
+  id                Int           @id @default(autoincrement())
+  ticketNumber      String        @unique
+  requesterId       Int
+  requester         RequesterUser @relation(fields: [requesterId], references: [id])
+  categoryId        Int
+  category          Category      @relation(fields: [categoryId], references: [id])
+  relatedSystemId   Int
+  relatedSystem     RelatedSystem @relation(fields: [relatedSystemId], references: [id])
+  summary           String
+  description       String
+  requestedPriority Priority
+  currentStatus     TicketStatus  @default(NEW)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  attachments       Attachment[]
+
+  @@index([requesterId])
+  @@index([createdAt])
+}
+
+// Lab 2 Issue 3 (created here since Create Ticket needs attachment upload) — soft-removal
+// fields are already present so Issue 5 doesn't need another migration for them.
+model Attachment {
+  id               Int       @id @default(autoincrement())
+  ticketId         Int
+  ticket           Ticket    @relation(fields: [ticketId], references: [id])
+  originalFilename String
+  storedFilename   String    @unique
+  mimeType         String
+  sizeBytes        Int
+  uploadedAt       DateTime  @default(now())
+  removedAt        DateTime?
+  removedReason    String?
+
+  @@index([ticketId])
 }
