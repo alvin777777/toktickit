@@ -31,4 +31,21 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Lab 2 Issue 2 — Development Requester context (docs/lab-02/api-spec.md §1)
+// Testing mechanism only, not authentication — see specification.md BR-03/BR-09.
+// ---------------------------------------------------------------------------
+app.get("/api/requesters", async (_req: Request, res: Response) => {
+  try {
+    const requesters = await getPrisma().requesterUser.findMany({
+      where: { isActive: true },
+      orderBy: { id: "asc" },
+      select: { id: true, name: true, email: true },
+    });
+    res.status(200).json(requesters);
+  } catch {
+    res.status(500).json({ error: "Unable to load development requesters" });
+  }
+});
+
 export default app;

@@ -22,3 +22,19 @@ export async function checkSystem(): Promise<SystemStatus> {
 
   return { online: true, categories };
 }
+
+// -----------------------------------------------------------------------------
+// Lab 2 Issue 2 — Development Requester context (docs/lab-02/api-spec.md §1).
+// This is a testing mechanism, not authentication (BR-03/BR-09).
+// -----------------------------------------------------------------------------
+export interface Requester {
+  id: number;
+  name: string;
+  email: string;
+}
+
+export async function getActiveRequesters(): Promise<Requester[]> {
+  const res = await fetch(`${API_URL}/api/requesters`);
+  if (!res.ok) throw new Error("Unable to load development requesters");
+  return res.json();
+}
