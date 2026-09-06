@@ -9,7 +9,7 @@
 | [#23](https://github.com/alvin777777/toktickit/pull/23) | feature/5-lab2-spec | Changes requested (4 cross-file contract gaps) → all fixed, merged |
 | [#24](https://github.com/alvin777777/toktickit/pull/24) | feature/6-dev-requester-context | Changes requested (UI-spec mismatch + missing tests) → all fixed, approved ("LGTM"), merged |
 | [#25](https://github.com/alvin777777/toktickit/pull/25) | feature/7-create-ticket | Changes requested (4 edge-case bugs) → all fixed, approved ("LGTM kub"), merged |
-| | feature/8-my-tickets | |
+| [#26](https://github.com/alvin777777/toktickit/pull/26) | feature/8-my-tickets | Changes requested (3 edge-case bugs) → all fixed, approved ("LGTM"), merged |
 | | feature/9-ticket-detail-attachments | |
 | | feature/10-responsive-qa-release | |
 
@@ -78,6 +78,27 @@ multi-select could exceed the 5-file client cap; and the success panel silently 
 > Re-requesting review.
 
 Partner's response: "LGTM kub"
+
+Outcome: fixed and merged.
+
+### PR #26 — reviewer comment I received
+> Requesting changes because a few My Tickets edge cases can show incorrect data: invalid
+> pagination query strings are partially accepted instead of falling back to defaults, overlapping
+> search/filter requests can overwrite the newest results with stale ones, and the pagination range
+> text is calculated incorrectly on partial pages.
+
+Specifically (inline comments): `parseInt("2abc")` parsed as `2` instead of falling back to the
+default (BR-13); slower, older search/filter requests could resolve after and overwrite newer
+ones, showing stale results while typing; and the "Showing X to Y of Z" text used `items.length`
+and a hard-coded `10` instead of the real `pageSize`, giving the wrong range on partial pages.
+
+### How I responded
+> Thanks — all 3 fixed: replaced `parseInt` with a strict `Number()` + `Number.isInteger` check;
+> added a request-id ref so a stale response can never overwrite a newer one's results; fixed the
+> range math to use the real `pageSize` from the API. 23 server + 23 client tests pass.
+> Re-requesting review.
+
+Partner's response: "LGTM"
 
 Outcome: fixed and merged.
 

@@ -302,4 +302,186 @@ app.get("/api/tickets", requireRequester, async (req: Request, res: Response) =>
   }
 });
 
+function serializeAttachment(a: {
+  id: number;
+  ticketId: number;
+  originalFilename: string;
+  sizeBytes: number;
+  mimeType: string;
+  uploadedAt: Date;
+  removedAt: Date | null;
+  removedReason: string | null;
+}) {
+  return {
+    id: a.id,
+    ticketId: a.ticketId,
+    originalFilename: a.originalFilename,
+    sizeBytes: a.sizeBytes,
+    mimeType: a.mimeType,
+    uploadedAt: a.uploadedAt,
+    removedAt: a.removedAt,
+    removedReason: a.removedReason,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Lab 2 Issue 5 — Requester Ticket Detail (docs/lab-02/api-spec.md §6)
+// ---------------------------------------------------------------------------
+app.get("/api/tickets/:ticketNumber", requireRequester, async (req: Request, res: Response) => {
+  try {
+    // BR-22/AC-03 — "doesn't exist" and "not yours" return the identical 404.
+    const ticket = await getPrisma().ticket.findFirst({
+      where: { ticketNumber: req.params.ticketNumber, requesterId: req.requesterId },
+      include: { attachments: { orderBy: { uploadedAt: "asc" } } },
+    });
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+
+    res.status(200).json({
+      id: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      ticketDate: ticket.createdAt,
+      requesterId: ticket.requesterId,
+      categoryId: ticket.categoryId,
+      relatedSystemId: ticket.relatedSystemId,
+      summary: ticket.summary,
+      description: ticket.description,
+      requestedPriority: ticket.requestedPriority,
+      currentStatus: ticket.currentStatus,
+      attachments: ticket.attachments.map(serializeAttachment),
+    });
+  } catch {
+    res.status(500).json({ error: "Unable to load ticket" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Lab 2 Issue 5 — Add an Attachment to an existing owned Ticket (api-spec.md §7)
+// ---------------------------------------------------------------------------
+app.post(
+  "/api/tickets/:ticketNumber/attachments",
+  requireRequester,
+  upload.single("file"),
+  handleUploadError,
+  async (req: Request, res: Response) => {
+    try {
+      const ticket = await getPrisma().ticket.findFirst({
+        where: { ticketNumber: req.params.ticketNumber, requesterId: req.requesterId },
+      });
+      if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+
+      const file = req.file as Express.Multer.File | undefined;
+      if (!file) {
+        return res.status(400).json({ error: "Invalid attachment", fields: { file: "A file is required." } });
+      }
+
+      // BR-16 — enforced against the ticket's current active count, not a client-sent count.
+      const activeCount = await getPrisma().attachment.count({
+        where: { ticketId: ticket.id, removedAt: null },
+      });
+      if (activeCount >= MAX_ATTACHMENTS_PER_TICKET) {
+        return res.status(400).json({
+          error: "Invalid attachment",
+          fields: { file: `This ticket already has ${MAX_ATTACHMENTS_PER_TICKET} active attachments.` },
+        });
+      }
+      if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+        return res.status(400).json({ error: "Invalid attachment", fields: { file: "Unsupported file type." } });
+      }
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        return res.status(400).json({ error: "Invalid attachment", fields: { file: "Exceeds 5 MB limit." } });
+      }
+
+      await mkdir(UPLOAD_DIR, { recursive: true });
+      const storedFilename = `${randomUUID()}${path.extname(file.originalname)}`;
+      await writeFile(path.join(UPLOAD_DIR, storedFilename), file.buffer);
+      const attachment = await getPrisma().attachment.create({
+        data: {
+          ticketId: ticket.id,
+          originalFilename: file.originalname,
+          storedFilename,
+          mimeType: file.mimetype,
+          sizeBytes: file.size,
+        },
+      });
+      res.status(201).json(serializeAttachment(attachment));
+    } catch {
+      res.status(500).json({ error: "Unable to add attachment" });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Lab 2 Issue 5 — Attachment metadata, download, and soft removal (api-spec.md §8-10)
+// ---------------------------------------------------------------------------
+app.get("/api/attachments/:id", requireRequester, async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(404).json({ error: "Attachment not found" });
+
+  try {
+    const attachment = await getPrisma().attachment.findFirst({
+      where: { id, ticket: { requesterId: req.requesterId } },
+    });
+    if (!attachment) return res.status(404).json({ error: "Attachment not found" });
+    res.status(200).json(serializeAttachment(attachment));
+  } catch {
+    res.status(500).json({ error: "Unable to load attachment" });
+  }
+});
+
+app.get("/api/attachments/:id/download", requireRequester, async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(404).json({ error: "Attachment not found" });
+
+  try {
+    // removedAt: null — a removed attachment 404s exactly like a nonexistent one (BR-18/AC-16).
+    const attachment = await getPrisma().attachment.findFirst({
+      where: { id, removedAt: null, ticket: { requesterId: req.requesterId } },
+    });
+    if (!attachment) return res.status(404).json({ error: "Attachment not found" });
+
+    res.setHeader("Content-Type", attachment.mimeType);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${encodeURIComponent(attachment.originalFilename)}"`
+    );
+    res.sendFile(path.join(UPLOAD_DIR, attachment.storedFilename), (err) => {
+      if (err && !res.headersSent) res.status(404).json({ error: "Attachment not found" });
+    });
+  } catch {
+    if (!res.headersSent) res.status(500).json({ error: "Unable to download attachment" });
+  }
+});
+
+app.delete("/api/attachments/:id", requireRequester, async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const reason = String(req.body?.reason ?? "").trim();
+
+  if (!Number.isInteger(id)) return res.status(404).json({ error: "Attachment not found" });
+  // BR-20 — a non-empty, bounded removal reason is required.
+  if (reason.length < 3 || reason.length > 200) {
+    return res.status(400).json({
+      error: "Invalid removal reason",
+      fields: { reason: "Reason must be 3-200 characters." },
+    });
+  }
+
+  try {
+    const attachment = await getPrisma().attachment.findFirst({
+      where: { id, ticket: { requesterId: req.requesterId } },
+    });
+    if (!attachment) return res.status(404).json({ error: "Attachment not found" });
+    if (attachment.removedAt) {
+      return res.status(400).json({ error: "Attachment already removed" });
+    }
+
+    const updated = await getPrisma().attachment.update({
+      where: { id },
+      data: { removedAt: new Date(), removedReason: reason },
+    });
+    res.status(200).json(serializeAttachment(updated));
+  } catch {
+    res.status(500).json({ error: "Unable to remove attachment" });
+  }
+});
+
 export default app;

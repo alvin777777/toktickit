@@ -15,17 +15,17 @@ as each Issue's tests are implemented and pass on `main`.
 | API-01 | API | AC-01 | POST /api/tickets with valid data | 201, ticket saved, ticketNumber returned | server/tests/lab-02/create-ticket.api.test.ts | Pass |
 | API-02 | API | AC-04 | POST /api/tickets missing summary | 400 with field error, no row created | server/tests/lab-02/create-ticket.api.test.ts | Pass |
 | API-03 | API | AC-05 | POST /api/tickets missing description | 400 with field error, no row created | server/tests/lab-02/create-ticket.api.test.ts | Pass |
-| API-04 | API | AC-06, BR-16 | POST attachment when 5 already active | 400, existing 5 untouched | server/tests/lab-02/attachments.api.test.ts | Planned |
-| API-05 | API | AC-07, BR-16 | POST attachment oversized/unsupported type | 400, no file stored | server/tests/lab-02/attachments.api.test.ts | Planned |
+| API-04 | API | AC-06, BR-16 | POST attachment when 5 already active | 400, existing 5 untouched | server/tests/lab-02/attachments.api.test.ts | Pass |
+| API-05 | API | AC-07, BR-16 | POST attachment oversized/unsupported type | 400, no file stored | server/tests/lab-02/attachments.api.test.ts | Pass |
 | API-06 | API | AC-03, BR-11 | GET /api/tickets as Requester B | Only B's tickets returned, none of A's | server/tests/lab-02/my-tickets.api.test.ts | Pass |
 | API-07 | API | AC-11, AC-12, BR-12, BR-13 | GET /api/tickets search + pagination | Correct filtered subset and page metadata | server/tests/lab-02/my-tickets.api.test.ts | Pass |
-| API-08 | API | AC-03, BR-22 | GET /api/tickets/:ticketNumber for non-owner | 404, identical to nonexistent ticket | server/tests/lab-02/ticket-detail.api.test.ts | Planned |
-| API-09 | API | AC-14 | POST /api/tickets/:ticketNumber/attachments | 201, attachment linked to ticket | server/tests/lab-02/attachments.api.test.ts | Planned |
-| API-10 | API | AC-15, AC-16, BR-18 | DELETE attachment then GET download | Soft-removed; subsequent download returns 404 | server/tests/lab-02/attachments.api.test.ts | Planned |
+| API-08 | API | AC-03, BR-22 | GET /api/tickets/:ticketNumber for non-owner | 404, identical to nonexistent ticket | server/tests/lab-02/ticket-detail.api.test.ts | Pass |
+| API-09 | API | AC-14 | POST /api/tickets/:ticketNumber/attachments | 201, attachment linked to ticket | server/tests/lab-02/attachments.api.test.ts | Pass |
+| API-10 | API | AC-15, AC-16, BR-18 | DELETE attachment then GET download | Soft-removed; subsequent download returns 404 | server/tests/lab-02/attachments.api.test.ts | Pass |
 | API-11 | API | BR-09 | GET /api/requesters | Only isActive=true requesters returned | server/tests/lab-02/requesters.api.test.ts | Pass |
 | API-12 | API | BR-09 | Any Requester-scoped endpoint with missing/unknown/inactive X-Requester-Id | 401 consistently across endpoints | server/tests/lab-02/auth-context.api.test.ts | Pass |
 | API-13 | API | AC-21, BR-15 | POST /api/tickets with one valid + one invalid attachment | 201; ticket saved; valid attachment linked; response reports the failed one and why | server/tests/lab-02/create-ticket.api.test.ts | Pass |
-| API-14 | API | AC-13 | GET /api/tickets/:ticketNumber for the owning Requester | 200; returned fields and attachments match stored data | server/tests/lab-02/ticket-detail.api.test.ts | Planned |
+| API-14 | API | AC-13 | GET /api/tickets/:ticketNumber for the owning Requester | 200; returned fields and attachments match stored data | server/tests/lab-02/ticket-detail.api.test.ts | Pass |
 | UI-02 | UI | AC-17 | Requester Selection loading state | Skeleton row shown, dropdown hidden, Continue disabled | client/tests/lab-02/DevRequesterSelect.test.tsx | Pass |
 | UI-03 | UI | AC-18 | Requester Selection with zero active requesters | Empty state shown, no dropdown, Continue disabled | client/tests/lab-02/DevRequesterSelect.test.tsx | Pass |
 | UI-04 | UI | AC-02 | Opening My Tickets with no Requester selected | Redirects to Requester Selection | client/tests/lab-02/RouteGuard.test.tsx | Pass |
@@ -39,9 +39,9 @@ as each Issue's tests are implemented and pass on `main`.
 | UI-11 | UI | AC-10, BR-21 | My Tickets with filters matching nothing | No-results state + Clear Filters shown | client/tests/lab-02/MyTickets.test.tsx | Pass |
 | UI-12 | UI | AC-11 | My Tickets search box | List narrows to matching tickets only | client/tests/lab-02/MyTickets.test.tsx | Pass |
 | UI-13 | UI | AC-12 | My Tickets pagination controls | Correct page of results loads | client/tests/lab-02/MyTickets.test.tsx | Pass |
-| UI-14 | UI | AC-13 | Ticket Detail header rendering | All fields read-only, match stored ticket | client/src/.../RequesterTicketDetail.test.tsx | Planned |
-| UI-15 | UI | AC-14 | Add attachment from Ticket Detail | New attachment appears without full reload | client/src/.../AttachmentSection.test.tsx | Planned |
-| UI-16 | UI | AC-15, AC-16 | Remove attachment with reason | Shown as removed w/ reason; no download link | client/src/.../AttachmentSection.test.tsx | Planned |
+| UI-14 | UI | AC-13 | Ticket Detail header rendering | All fields read-only, match stored ticket | client/tests/lab-02/RequesterTicketDetail.test.tsx | Pass |
+| UI-15 | UI | AC-14 | Add attachment from Ticket Detail | New attachment appears without full reload | client/tests/lab-02/AttachmentSection.test.tsx | Pass |
+| UI-16 | UI | AC-15, AC-16 | Remove attachment with reason | Shown as removed w/ reason; no download link | client/tests/lab-02/AttachmentSection.test.tsx | Pass |
 | UI-17 | UI | AC-20 | Change Requester from the app shell | Context + localStorage cleared; returns to /select | client/tests/lab-02/AppShell.test.tsx | Pass |
 | RESP-01 | Responsive/Visual | AC-19 | Desktop/tablet/mobile screenshots, all 3 screens | No clipping/overlap/horizontal scroll at any width | e2e/lab-02/responsive.spec.ts | Planned |
 | E2E-01 | E2E | AC-01, AC-13 | Full Requester flow | Select requester → create ticket → find in My Tickets → open Detail shows same data | e2e/lab-02/requester-ticket-flow.spec.ts | Planned |
