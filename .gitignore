@@ -10,6 +10,8 @@ build/
 .vite/
 # prisma
 server/prisma/*.db
+# uploaded attachments (Lab 2) — local dev storage only
+server/uploads/
 # logs & OS
 *.log
 .DS_Store

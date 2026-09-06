@@ -14,6 +14,17 @@ const REQUESTERS = [
   { name: "Former Employee", email: "former.employee@toktickit.dev", isActive: false },
 ];
 
+// Lab 2 Issue 3 — seed Related Systems (docs/lab-02/specification.md §5.3), at least 6.
+const RELATED_SYSTEM_NAMES = [
+  "Email",
+  "Campus Wi-Fi",
+  "VPN",
+  "LEB2 App",
+  "Grade Submission App",
+  "Printer",
+  "Corporate Laptop",
+];
+
 async function main() {
   const prisma = getPrisma();
 
@@ -34,6 +45,15 @@ async function main() {
     });
   }
   console.log(`Seeded ${REQUESTERS.length} development requesters.`);
+
+  for (const name of RELATED_SYSTEM_NAMES) {
+    await prisma.relatedSystem.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+  }
+  console.log(`Seeded ${RELATED_SYSTEM_NAMES.length} related systems.`);
 }
 
 main()

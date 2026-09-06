@@ -7,7 +7,7 @@
 | PR | Branch | Reviewer verdict |
 |----|--------|------------------|
 | [#23](https://github.com/alvin777777/toktickit/pull/23) | feature/5-lab2-spec | Changes requested (4 cross-file contract gaps) → all fixed, merged |
-| | feature/6-dev-requester-context | |
+| [#24](https://github.com/alvin777777/toktickit/pull/24) | feature/6-dev-requester-context | Changes requested (UI-spec mismatch + missing tests) → all fixed, approved ("LGTM"), merged |
 | | feature/7-create-ticket | |
 | | feature/8-my-tickets | |
 | | feature/9-ticket-detail-attachments | |
@@ -32,6 +32,26 @@ non-owner 404 case, not the owned-ticket-detail happy path.
 > Thanks for the thorough review — all 4 fixed: BR-09 now says 401 everywhere; GET /api/tickets list
 > items now include `updatedAt`; added AC-21 + test API-13 for the partial-attachment-failure rule;
 > added API-14 (the actual happy path) and remapped AC-13 to it. Re-requesting review.
+
+Outcome: fixed and merged.
+
+### PR #24 — reviewer comment I received
+> Requesting changes for two reasons: the requester-selection loading/empty UI does not fully
+> match the approved UI contract, and the implemented requester context transitions are missing
+> the tests required by the issue/test plan.
+
+Specifically (inline comments): the loading state rendered only a status line instead of keeping
+the form shape (skeleton row + disabled Continue) per ui-spec.md §5.2; there was no test for
+selecting a requester and clicking Continue (FR-02); and no test for the Change Requester action
+(UI-17 in tests.md).
+
+### How I responded
+> Thanks — both fixed: loading state now keeps the form shape with a skeleton row + disabled
+> Continue; added the Continue-flow test and a new AppShell.test.tsx for Change Requester. Also
+> fixed a real test-infra bug found along the way (Node's own global localStorage shadowing
+> jsdom's under Vitest). All 10 client + 3 server tests pass. Re-requesting review.
+
+Partner's response: "LGTM"
 
 Outcome: fixed and merged.
 

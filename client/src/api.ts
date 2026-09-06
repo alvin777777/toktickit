@@ -38,3 +38,76 @@ export async function getActiveRequesters(): Promise<Requester[]> {
   if (!res.ok) throw new Error("Unable to load development requesters");
   return res.json();
 }
+
+// -----------------------------------------------------------------------------
+// Lab 2 Issue 3 — Create Ticket (docs/lab-02/api-spec.md §2-4).
+// -----------------------------------------------------------------------------
+export interface RelatedSystem {
+  id: number;
+  name: string;
+}
+
+export async function getCategories(): Promise<Category[]> {
+  const res = await fetch(`${API_URL}/api/categories`);
+  if (!res.ok) throw new Error("Unable to load categories");
+  return res.json();
+}
+
+export async function getRelatedSystems(): Promise<RelatedSystem[]> {
+  const res = await fetch(`${API_URL}/api/related-systems`);
+  if (!res.ok) throw new Error("Unable to load related systems");
+  return res.json();
+}
+
+export interface CreateTicketInput {
+  categoryId: number;
+  relatedSystemId: number;
+  summary: string;
+  description: string;
+  requestedPriority: "LOW" | "MEDIUM" | "HIGH";
+  attachments: File[];
+}
+
+export interface AttachmentError {
+  filename: string;
+  reason: string;
+}
+
+export interface CreatedTicket {
+  id: number;
+  ticketNumber: string;
+  attachments: { id: number; originalFilename: string; sizeBytes: number }[];
+  attachmentErrors: AttachmentError[];
+}
+
+// Thrown on 400 (validation) so the UI can show field-level messages (AC-04/AC-05).
+export class TicketValidationError extends Error {
+  fields: Record<string, string>;
+  constructor(fields: Record<string, string>) {
+    super("Invalid ticket data");
+    this.fields = fields;
+  }
+}
+
+export async function createTicket(requesterId: number, input: CreateTicketInput): Promise<CreatedTicket> {
+  const form = new FormData();
+  form.set("categoryId", String(input.categoryId));
+  form.set("relatedSystemId", String(input.relatedSystemId));
+  form.set("summary", input.summary);
+  form.set("description", input.description);
+  form.set("requestedPriority", input.requestedPriority);
+  for (const file of input.attachments) form.append("attachments", file);
+
+  const res = await fetch(`${API_URL}/api/tickets`, {
+    method: "POST",
+    headers: { "X-Requester-Id": String(requesterId) },
+    body: form,
+  });
+
+  if (res.status === 400) {
+    const body = await res.json();
+    throw new TicketValidationError(body.fields ?? {});
+  }
+  if (!res.ok) throw new Error("Unable to create ticket");
+  return res.json();
+}

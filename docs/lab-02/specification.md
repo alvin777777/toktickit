@@ -257,6 +257,11 @@ call (a stand-in for the session that Lab 3's auth will provide).
 - **Attachment storage:** local disk under `server/uploads/` (gitignored), served through an
   authenticated-by-ownership download route rather than static file serving, so removed/foreign
   attachments can never be fetched by guessing a URL.
+- **Attachment model built in Issue 3, not Issue 5:** the original Issue breakdown scoped the
+  `Attachment` table to Issue 5, but Create Ticket (Issue 3) already needs to persist attachments
+  submitted at creation time (FR-04, AC-06/07/21, BR-14/15/16/17), so the model (with its
+  soft-removal fields already present) was added in Issue 3's migration instead. Issue 5 reuses it
+  unchanged and adds the standalone add/download/remove endpoints.
 - **404 vs 403 for ownership failures:** Lab 2 always returns 404 for both "doesn't exist" and "not
   yours" (BR-22/AC-03) to avoid confirming a Ticket Number's existence to a non-owner.
 - **Pagination defaults:** page size 10 / max 50, chosen to match the illustrative My Tickets screen

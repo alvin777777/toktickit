@@ -3,7 +3,7 @@ import { RequesterProvider } from "./context/RequesterContext.js";
 import RequireRequester from "./components/RequireRequester.js";
 import RequesterSelect from "./pages/RequesterSelect.js";
 import MyTicketsPlaceholder from "./pages/MyTicketsPlaceholder.js";
-import CreateTicketPlaceholder from "./pages/CreateTicketPlaceholder.js";
+import CreateTicket from "./pages/CreateTicket.js";
 
 // Lab 2 Issue 2 — App.tsx becomes the router root. The Lab 1 health-check demo now lives in
 // components/SystemStatusCard.tsx (see docs/lab-02/specification.md §11).
@@ -25,7 +25,7 @@ export default function App() {
             path="/tickets/new"
             element={
               <RequireRequester>
-                <CreateTicketPlaceholder />
+                <CreateTicket />
               </RequireRequester>
             }
           />
