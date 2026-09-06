@@ -1,0 +1,94 @@
+# Lab 2 Test Plan and Results
+
+## 1. Test Strategy
+
+Tests are planned from `specification.md` before implementation (Test DD), then written failing and
+implemented against until green (TDD), per Issue. Every Acceptance Criterion (AC-01..AC-20) maps to
+at least one row below. Status in the **Final** column starts as `Planned` and is updated to `Pass`
+as each Issue's tests are implemented and pass on `main`.
+
+## 2. Planned Tests
+
+| Test ID | Type | Requirement/AC | What It Tests | Expected Result | Automated Test File | Final |
+|---|---|---|---|---|---|---|
+| UNIT-01 | Unit | BR-01 | Ticket Number generator format/uniqueness | Matches `TKT-YYYY-NNNNNN`, unique across concurrent creates | server/tests/lab-02/ticket-number.unit.test.ts | Planned |
+| API-01 | API | AC-01 | POST /api/tickets with valid data | 201, ticket saved, ticketNumber returned | server/tests/lab-02/create-ticket.api.test.ts | Planned |
+| API-02 | API | AC-04 | POST /api/tickets missing summary | 400 with field error, no row created | server/tests/lab-02/create-ticket.api.test.ts | Planned |
+| API-03 | API | AC-05 | POST /api/tickets missing description | 400 with field error, no row created | server/tests/lab-02/create-ticket.api.test.ts | Planned |
+| API-04 | API | AC-06, BR-16 | POST attachment when 5 already active | 400, existing 5 untouched | server/tests/lab-02/attachments.api.test.ts | Planned |
+| API-05 | API | AC-07, BR-16 | POST attachment oversized/unsupported type | 400, no file stored | server/tests/lab-02/attachments.api.test.ts | Planned |
+| API-06 | API | AC-03, BR-11 | GET /api/tickets as Requester B | Only B's tickets returned, none of A's | server/tests/lab-02/my-tickets.api.test.ts | Planned |
+| API-07 | API | AC-11, AC-12, BR-12, BR-13 | GET /api/tickets search + pagination | Correct filtered subset and page metadata | server/tests/lab-02/my-tickets.api.test.ts | Planned |
+| API-08 | API | AC-03, BR-22 | GET /api/tickets/:ticketNumber for non-owner | 404, identical to nonexistent ticket | server/tests/lab-02/ticket-detail.api.test.ts | Planned |
+| API-09 | API | AC-14 | POST /api/tickets/:ticketNumber/attachments | 201, attachment linked to ticket | server/tests/lab-02/attachments.api.test.ts | Planned |
+| API-10 | API | AC-15, AC-16, BR-18 | DELETE attachment then GET download | Soft-removed; subsequent download returns 404 | server/tests/lab-02/attachments.api.test.ts | Planned |
+| API-11 | API | BR-09 | GET /api/requesters | Only isActive=true requesters returned | server/tests/lab-02/requesters.api.test.ts | Planned |
+| UI-02 | UI | AC-17 | Requester Selection loading state | Skeleton shown before list appears | client/src/.../DevRequesterSelect.test.tsx | Planned |
+| UI-03 | UI | AC-18 | Requester Selection with zero active requesters | Empty state shown, no dropdown | client/src/.../DevRequesterSelect.test.tsx | Planned |
+| UI-04 | UI | AC-02 | Opening My Tickets with no Requester selected | Redirects to Requester Selection | client/src/.../RouteGuard.test.tsx | Planned |
+| UI-05 | UI | AC-04 | Submit Create Ticket with empty Summary | Field message shown, API not called | client/src/.../CreateTicket.test.tsx | Planned |
+| UI-06 | UI | AC-05 | Submit Create Ticket with empty Description | Field message shown, API not called | client/src/.../CreateTicket.test.tsx | Planned |
+| UI-07 | UI | AC-07 | Select an oversized/invalid-type file | Rejected client-side before any upload call | client/src/.../CreateTicket.test.tsx | Planned |
+| UI-08 | UI | AC-08 | Create Ticket submit while API is down | Error banner shown; field values preserved | client/src/.../CreateTicket.test.tsx | Planned |
+| UI-09 | UI | AC-01 | Create Ticket success | Confirmation panel shows generated Ticket Number | client/src/.../CreateTicket.test.tsx | Planned |
+| UI-10 | UI | AC-09, BR-21 | My Tickets with zero owned tickets | Empty state (not no-results) shown | client/src/.../MyTickets.test.tsx | Planned |
+| UI-11 | UI | AC-10, BR-21 | My Tickets with filters matching nothing | No-results state + Clear Filters shown | client/src/.../MyTickets.test.tsx | Planned |
+| UI-12 | UI | AC-11 | My Tickets search box | List narrows to matching tickets only | client/src/.../MyTickets.test.tsx | Planned |
+| UI-13 | UI | AC-12 | My Tickets pagination controls | Correct page of results loads | client/src/.../MyTickets.test.tsx | Planned |
+| UI-14 | UI | AC-13 | Ticket Detail header rendering | All fields read-only, match stored ticket | client/src/.../RequesterTicketDetail.test.tsx | Planned |
+| UI-15 | UI | AC-14 | Add attachment from Ticket Detail | New attachment appears without full reload | client/src/.../AttachmentSection.test.tsx | Planned |
+| UI-16 | UI | AC-15, AC-16 | Remove attachment with reason | Shown as removed w/ reason; no download link | client/src/.../AttachmentSection.test.tsx | Planned |
+| UI-17 | UI | AC-20 | Change Requester from the app shell | My Tickets reloads to the new Requester's data | client/src/.../RequesterContext.test.tsx | Planned |
+| RESP-01 | Responsive/Visual | AC-19 | Desktop/tablet/mobile screenshots, all 3 screens | No clipping/overlap/horizontal scroll at any width | e2e/lab-02/responsive.spec.ts | Planned |
+| E2E-01 | E2E | AC-01, AC-13 | Full Requester flow | Select requester → create ticket → find in My Tickets → open Detail shows same data | e2e/lab-02/requester-ticket-flow.spec.ts | Planned |
+| E2E-02 | E2E | AC-03, AC-20 | Cross-Requester isolation | Requester B cannot see or open Requester A's ticket by URL | e2e/lab-02/requester-ticket-flow.spec.ts | Planned |
+
+## 3. Acceptance-Criterion Traceability
+
+| AC | Covered by |
+|---|---|
+| AC-01 | API-01, UI-09, E2E-01 |
+| AC-02 | UI-04 |
+| AC-03 | API-06, API-08, E2E-02 |
+| AC-04 | API-02, UI-05 |
+| AC-05 | API-03, UI-06 |
+| AC-06 | API-04 |
+| AC-07 | API-05, UI-07 |
+| AC-08 | UI-08 |
+| AC-09 | UI-10 |
+| AC-10 | UI-11 |
+| AC-11 | API-07, UI-12 |
+| AC-12 | API-07, UI-13 |
+| AC-13 | API-08, UI-14, E2E-01 |
+| AC-14 | API-09, UI-15 |
+| AC-15 | API-10, UI-16 |
+| AC-16 | API-10, UI-16 |
+| AC-17 | UI-02 |
+| AC-18 | UI-03 |
+| AC-19 | RESP-01 |
+| AC-20 | UI-17, E2E-02 |
+
+## 4. Responsive and Visual Checklist
+
+See `ui-spec.md` §8 — completed during Issue 6 alongside RESP-01, with screenshots saved under
+`artifacts/lab-02/screenshots/`.
+
+## 5. Test Commands
+
+```bash
+cd server && npm test    # unit + API tests (Vitest + Supertest)
+cd client && npm test    # UI tests (Vitest + Testing Library)
+npx playwright test e2e/lab-02   # E2E + responsive screenshots
+```
+
+## 6. Final Results
+
+To be filled in as each Issue's tests pass on `main` (see the **Final** column above; update
+`Planned` → `Pass` per row, and paste terminal output here for the Lab 2 submission).
+
+## 7. Known Limitations or Deferred Tests
+
+- Attachment virus/content scanning is out of scope for Lab 2 (type/size checks only).
+- Load/performance testing of pagination at large data volumes is deferred.
+- Accessibility is checked manually (keyboard nav, labels) per `ui-spec.md` §7; no automated a11y
+  scanner is wired in for Lab 2.
