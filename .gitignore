@@ -12,6 +12,10 @@ build/
 server/prisma/*.db
 # uploaded attachments (Lab 2) — local dev storage only
 server/uploads/
+# Playwright — local run output, not the specs themselves
+e2e/test-results/
+e2e/playwright-report/
+e2e/.cache/
 # logs & OS
 *.log
 .DS_Store

@@ -134,12 +134,14 @@ States:
 - Badges and error states never rely on color alone — text/icon always accompanies the color.
 - Dropdowns and dialogs are operable with keyboard only (Tab/Enter/Escape).
 
-## 8. Visual Inspection Checklist (fill in during Issue 6)
+## 8. Visual Inspection Checklist
 
-- [ ] No clipped labels or truncated buttons at any breakpoint
-- [ ] No overlapping validation messages
-- [ ] No unintended horizontal scrolling at 375px width
-- [ ] Priority/Status badges use consistent colors across My Tickets and Ticket Detail
-- [ ] Editable vs read-only fields are visually distinguishable at a glance
-- [ ] Screenshots captured: `artifacts/lab-02/screenshots/{create-ticket,my-tickets,ticket-detail}/`
-      at desktop, tablet, and mobile widths
+Completed in Issue 6 via `e2e/lab-02/responsive.spec.ts` (automated `scrollWidth` check, one run
+per viewport) plus manual review of the resulting screenshots.
+
+- [x] No clipped labels or truncated buttons at any breakpoint — confirmed visually on all 9 screenshots
+- [x] No overlapping validation messages — Create Ticket reviewed at all 3 widths
+- [x] No unintended horizontal scrolling at any width — automated check (`document.documentElement.scrollWidth <= clientWidth`) passes for all 3 screens × 3 viewports (9/9, see RESP-01 in `tests.md`)
+- [x] Priority/Status badges use consistent colors across My Tickets and Ticket Detail — same `PRIORITY_BADGE` map used in both
+- [x] Editable vs read-only fields are visually distinguishable at a glance — read-only fields use the ivory `#F3F1EA` background consistently
+- [x] Screenshots captured: `artifacts/lab-02/screenshots/{create-ticket,my-tickets,ticket-detail}/{desktop,tablet,mobile}.png` (9 files)

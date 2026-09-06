@@ -43,9 +43,9 @@ as each Issue's tests are implemented and pass on `main`.
 | UI-15 | UI | AC-14 | Add attachment from Ticket Detail | New attachment appears without full reload | client/tests/lab-02/AttachmentSection.test.tsx | Pass |
 | UI-16 | UI | AC-15, AC-16 | Remove attachment with reason | Shown as removed w/ reason; no download link | client/tests/lab-02/AttachmentSection.test.tsx | Pass |
 | UI-17 | UI | AC-20 | Change Requester from the app shell | Context + localStorage cleared; returns to /select | client/tests/lab-02/AppShell.test.tsx | Pass |
-| RESP-01 | Responsive/Visual | AC-19 | Desktop/tablet/mobile screenshots, all 3 screens | No clipping/overlap/horizontal scroll at any width | e2e/lab-02/responsive.spec.ts | Planned |
-| E2E-01 | E2E | AC-01, AC-13 | Full Requester flow | Select requester → create ticket → find in My Tickets → open Detail shows same data | e2e/lab-02/requester-ticket-flow.spec.ts | Planned |
-| E2E-02 | E2E | AC-03, AC-20 | Cross-Requester isolation | Requester B cannot see or open Requester A's ticket by URL | e2e/lab-02/requester-ticket-flow.spec.ts | Planned |
+| RESP-01 | Responsive/Visual | AC-19 | Desktop/tablet/mobile screenshots, all 3 screens | No clipping/overlap/horizontal scroll at any width | e2e/lab-02/responsive.spec.ts | Pass |
+| E2E-01 | E2E | AC-01, AC-13 | Full Requester flow | Select requester → create ticket → find in My Tickets → open Detail shows same data | e2e/lab-02/requester-ticket-flow.spec.ts | Pass |
+| E2E-02 | E2E | AC-03, AC-20 | Cross-Requester isolation | Requester B cannot see or open Requester A's ticket by URL | e2e/lab-02/requester-ticket-flow.spec.ts | Pass |
 
 ## 3. Acceptance-Criterion Traceability
 
