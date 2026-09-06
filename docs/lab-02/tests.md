@@ -17,8 +17,8 @@ as each Issue's tests are implemented and pass on `main`.
 | API-03 | API | AC-05 | POST /api/tickets missing description | 400 with field error, no row created | server/tests/lab-02/create-ticket.api.test.ts | Pass |
 | API-04 | API | AC-06, BR-16 | POST attachment when 5 already active | 400, existing 5 untouched | server/tests/lab-02/attachments.api.test.ts | Planned |
 | API-05 | API | AC-07, BR-16 | POST attachment oversized/unsupported type | 400, no file stored | server/tests/lab-02/attachments.api.test.ts | Planned |
-| API-06 | API | AC-03, BR-11 | GET /api/tickets as Requester B | Only B's tickets returned, none of A's | server/tests/lab-02/my-tickets.api.test.ts | Planned |
-| API-07 | API | AC-11, AC-12, BR-12, BR-13 | GET /api/tickets search + pagination | Correct filtered subset and page metadata | server/tests/lab-02/my-tickets.api.test.ts | Planned |
+| API-06 | API | AC-03, BR-11 | GET /api/tickets as Requester B | Only B's tickets returned, none of A's | server/tests/lab-02/my-tickets.api.test.ts | Pass |
+| API-07 | API | AC-11, AC-12, BR-12, BR-13 | GET /api/tickets search + pagination | Correct filtered subset and page metadata | server/tests/lab-02/my-tickets.api.test.ts | Pass |
 | API-08 | API | AC-03, BR-22 | GET /api/tickets/:ticketNumber for non-owner | 404, identical to nonexistent ticket | server/tests/lab-02/ticket-detail.api.test.ts | Planned |
 | API-09 | API | AC-14 | POST /api/tickets/:ticketNumber/attachments | 201, attachment linked to ticket | server/tests/lab-02/attachments.api.test.ts | Planned |
 | API-10 | API | AC-15, AC-16, BR-18 | DELETE attachment then GET download | Soft-removed; subsequent download returns 404 | server/tests/lab-02/attachments.api.test.ts | Planned |
@@ -35,10 +35,10 @@ as each Issue's tests are implemented and pass on `main`.
 | UI-07 | UI | AC-07 | Select an oversized/invalid-type file | Rejected client-side before any upload call | client/tests/lab-02/CreateTicket.test.tsx | Pass |
 | UI-08 | UI | AC-08 | Create Ticket submit while API is down | Error banner shown; field values preserved | client/tests/lab-02/CreateTicket.test.tsx | Pass |
 | UI-09 | UI | AC-01 | Create Ticket success | Confirmation panel shows generated Ticket Number | client/tests/lab-02/CreateTicket.test.tsx | Pass |
-| UI-10 | UI | AC-09, BR-21 | My Tickets with zero owned tickets | Empty state (not no-results) shown | client/src/.../MyTickets.test.tsx | Planned |
-| UI-11 | UI | AC-10, BR-21 | My Tickets with filters matching nothing | No-results state + Clear Filters shown | client/src/.../MyTickets.test.tsx | Planned |
-| UI-12 | UI | AC-11 | My Tickets search box | List narrows to matching tickets only | client/src/.../MyTickets.test.tsx | Planned |
-| UI-13 | UI | AC-12 | My Tickets pagination controls | Correct page of results loads | client/src/.../MyTickets.test.tsx | Planned |
+| UI-10 | UI | AC-09, BR-21 | My Tickets with zero owned tickets | Empty state (not no-results) shown | client/tests/lab-02/MyTickets.test.tsx | Pass |
+| UI-11 | UI | AC-10, BR-21 | My Tickets with filters matching nothing | No-results state + Clear Filters shown | client/tests/lab-02/MyTickets.test.tsx | Pass |
+| UI-12 | UI | AC-11 | My Tickets search box | List narrows to matching tickets only | client/tests/lab-02/MyTickets.test.tsx | Pass |
+| UI-13 | UI | AC-12 | My Tickets pagination controls | Correct page of results loads | client/tests/lab-02/MyTickets.test.tsx | Pass |
 | UI-14 | UI | AC-13 | Ticket Detail header rendering | All fields read-only, match stored ticket | client/src/.../RequesterTicketDetail.test.tsx | Planned |
 | UI-15 | UI | AC-14 | Add attachment from Ticket Detail | New attachment appears without full reload | client/src/.../AttachmentSection.test.tsx | Planned |
 | UI-16 | UI | AC-15, AC-16 | Remove attachment with reason | Shown as removed w/ reason; no download link | client/src/.../AttachmentSection.test.tsx | Planned |

@@ -221,4 +221,85 @@ app.post(
   }
 );
 
+// ---------------------------------------------------------------------------
+// Lab 2 Issue 4 — My Tickets (docs/lab-02/api-spec.md §5)
+// ---------------------------------------------------------------------------
+const SORTABLE_FIELDS = new Set(["createdAt", "requestedPriority", "currentStatus"]);
+const VALID_PRIORITIES = new Set(["LOW", "MEDIUM", "HIGH"]);
+const VALID_STATUSES = new Set(["NEW"]);
+const DEFAULT_PAGE_SIZE = 10;
+const MAX_PAGE_SIZE = 50;
+
+// `parseInt` silently accepts partially-numeric strings ("2abc" -> 2), so a malformed query
+// param would still drive pagination instead of falling back (BR-13). `Number()` rejects the
+// whole string as NaN unless every character is part of a valid number.
+function parsePositiveInt(value: unknown, fallback: number): number {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
+app.get("/api/tickets", requireRequester, async (req: Request, res: Response) => {
+  const prisma = getPrisma();
+
+  // BR-13 — invalid page/pageSize fall back to defaults rather than erroring.
+  const page = parsePositiveInt(req.query.page, 1);
+  const pageSize = Math.min(parsePositiveInt(req.query.pageSize, DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE);
+
+  const sortByParam = String(req.query.sortBy ?? "createdAt");
+  const sortBy = SORTABLE_FIELDS.has(sortByParam) ? sortByParam : "createdAt";
+  const sortDir = req.query.sortDir === "asc" ? "asc" : "desc";
+
+  // BR-11 — requesterId scoping is enforced here, server-side, never left to the UI alone.
+  const where: Record<string, unknown> = { requesterId: req.requesterId };
+
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  if (search) {
+    where.OR = [
+      { ticketNumber: { contains: search, mode: "insensitive" } },
+      { summary: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  const categoryId = Number(req.query.categoryId);
+  if (Number.isInteger(categoryId)) where.categoryId = categoryId;
+
+  const requestedPriority = String(req.query.requestedPriority ?? "");
+  if (VALID_PRIORITIES.has(requestedPriority)) where.requestedPriority = requestedPriority;
+
+  const currentStatus = String(req.query.currentStatus ?? "");
+  if (VALID_STATUSES.has(currentStatus)) where.currentStatus = currentStatus;
+
+  try {
+    const [items, totalItems] = await Promise.all([
+      prisma.ticket.findMany({
+        where,
+        orderBy: { [sortBy]: sortDir },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          ticketNumber: true,
+          summary: true,
+          categoryId: true,
+          requestedPriority: true,
+          currentStatus: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      prisma.ticket.count({ where }),
+    ]);
+
+    res.status(200).json({
+      items,
+      page,
+      pageSize,
+      totalItems,
+      totalPages: Math.max(1, Math.ceil(totalItems / pageSize)),
+    });
+  } catch {
+    res.status(500).json({ error: "Unable to load tickets" });
+  }
+});
+
 export default app;

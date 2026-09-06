@@ -8,7 +8,7 @@
 |----|--------|------------------|
 | [#23](https://github.com/alvin777777/toktickit/pull/23) | feature/5-lab2-spec | Changes requested (4 cross-file contract gaps) → all fixed, merged |
 | [#24](https://github.com/alvin777777/toktickit/pull/24) | feature/6-dev-requester-context | Changes requested (UI-spec mismatch + missing tests) → all fixed, approved ("LGTM"), merged |
-| | feature/7-create-ticket | |
+| [#25](https://github.com/alvin777777/toktickit/pull/25) | feature/7-create-ticket | Changes requested (4 edge-case bugs) → all fixed, approved ("LGTM kub"), merged |
 | | feature/8-my-tickets | |
 | | feature/9-ticket-detail-attachments | |
 | | feature/10-responsive-qa-release | |
@@ -52,6 +52,32 @@ selecting a requester and clicking Continue (FR-02); and no test for the Change 
 > jsdom's under Vitest). All 10 client + 3 server tests pass. Re-requesting review.
 
 Partner's response: "LGTM"
+
+Outcome: fixed and merged.
+
+### PR #25 — reviewer comment I received
+> Requesting changes because a few create-ticket edge cases still violate the approved contract:
+> malformed requester headers can become 500s, server-side attachment count failures are handled
+> by Multer before the API can return the expected validation response, the client can exceed the
+> 5-file limit when multiple files are selected at once, and partial attachment failures are not
+> shown to the requester.
+
+Specifically (inline comments): `Number("1.5")`/`Number("Infinity")` passed the old `isNaN` check
+and reached Prisma, throwing 500 instead of the required 401; `upload.array("attachments", 5)`
+let Multer reject a 6th file before our handler ran, bypassing the documented 400 response;
+`handleFilePick` read the same stale `attachments.length` on every loop iteration, so one
+multi-select could exceed the 5-file client cap; and the success panel silently dropped the
+`attachmentErrors` the API already returned for BR-15.
+
+### How I responded
+> Thanks — all 4 fixed: `requireRequester` now validates the header as a positive integer within
+> Postgres's int range before querying; Multer's own limits are now just a generous safety net
+> while we enforce the real 5-file cap ourselves with the same 400 shape; the file picker
+> accumulates locally and commits once instead of reading stale state per iteration; and the
+> success panel now lists which attachment(s) failed and why. 18 server + 17 client tests pass.
+> Re-requesting review.
+
+Partner's response: "LGTM kub"
 
 Outcome: fixed and merged.
 

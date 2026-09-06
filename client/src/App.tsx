@@ -2,7 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { RequesterProvider } from "./context/RequesterContext.js";
 import RequireRequester from "./components/RequireRequester.js";
 import RequesterSelect from "./pages/RequesterSelect.js";
-import MyTicketsPlaceholder from "./pages/MyTicketsPlaceholder.js";
+import MyTickets from "./pages/MyTickets.js";
 import CreateTicket from "./pages/CreateTicket.js";
 
 // Lab 2 Issue 2 — App.tsx becomes the router root. The Lab 1 health-check demo now lives in
@@ -17,7 +17,7 @@ export default function App() {
             path="/tickets"
             element={
               <RequireRequester>
-                <MyTicketsPlaceholder />
+                <MyTickets />
               </RequireRequester>
             }
           />
