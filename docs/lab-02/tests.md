@@ -11,10 +11,10 @@ as each Issue's tests are implemented and pass on `main`.
 
 | Test ID | Type | Requirement/AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
-| UNIT-01 | Unit | BR-01 | Ticket Number generator format/uniqueness | Matches `TKT-YYYY-NNNNNN`, unique across concurrent creates | server/tests/lab-02/ticket-number.unit.test.ts | Planned |
-| API-01 | API | AC-01 | POST /api/tickets with valid data | 201, ticket saved, ticketNumber returned | server/tests/lab-02/create-ticket.api.test.ts | Planned |
-| API-02 | API | AC-04 | POST /api/tickets missing summary | 400 with field error, no row created | server/tests/lab-02/create-ticket.api.test.ts | Planned |
-| API-03 | API | AC-05 | POST /api/tickets missing description | 400 with field error, no row created | server/tests/lab-02/create-ticket.api.test.ts | Planned |
+| UNIT-01 | Unit | BR-01 | Ticket Number generator format/uniqueness | Matches `TKT-YYYY-NNNNNN`, unique across concurrent creates | server/tests/lab-02/ticket-number.unit.test.ts | Pass |
+| API-01 | API | AC-01 | POST /api/tickets with valid data | 201, ticket saved, ticketNumber returned | server/tests/lab-02/create-ticket.api.test.ts | Pass |
+| API-02 | API | AC-04 | POST /api/tickets missing summary | 400 with field error, no row created | server/tests/lab-02/create-ticket.api.test.ts | Pass |
+| API-03 | API | AC-05 | POST /api/tickets missing description | 400 with field error, no row created | server/tests/lab-02/create-ticket.api.test.ts | Pass |
 | API-04 | API | AC-06, BR-16 | POST attachment when 5 already active | 400, existing 5 untouched | server/tests/lab-02/attachments.api.test.ts | Planned |
 | API-05 | API | AC-07, BR-16 | POST attachment oversized/unsupported type | 400, no file stored | server/tests/lab-02/attachments.api.test.ts | Planned |
 | API-06 | API | AC-03, BR-11 | GET /api/tickets as Requester B | Only B's tickets returned, none of A's | server/tests/lab-02/my-tickets.api.test.ts | Planned |
@@ -23,18 +23,18 @@ as each Issue's tests are implemented and pass on `main`.
 | API-09 | API | AC-14 | POST /api/tickets/:ticketNumber/attachments | 201, attachment linked to ticket | server/tests/lab-02/attachments.api.test.ts | Planned |
 | API-10 | API | AC-15, AC-16, BR-18 | DELETE attachment then GET download | Soft-removed; subsequent download returns 404 | server/tests/lab-02/attachments.api.test.ts | Planned |
 | API-11 | API | BR-09 | GET /api/requesters | Only isActive=true requesters returned | server/tests/lab-02/requesters.api.test.ts | Pass |
-| API-12 | API | BR-09 | Any Requester-scoped endpoint with missing/unknown/inactive X-Requester-Id | 401 consistently across endpoints | server/tests/lab-02/auth-context.api.test.ts | Planned |
-| API-13 | API | AC-21, BR-15 | POST /api/tickets with one valid + one invalid attachment | 201; ticket saved; valid attachment linked; response reports the failed one and why | server/tests/lab-02/create-ticket.api.test.ts | Planned |
+| API-12 | API | BR-09 | Any Requester-scoped endpoint with missing/unknown/inactive X-Requester-Id | 401 consistently across endpoints | server/tests/lab-02/auth-context.api.test.ts | Pass |
+| API-13 | API | AC-21, BR-15 | POST /api/tickets with one valid + one invalid attachment | 201; ticket saved; valid attachment linked; response reports the failed one and why | server/tests/lab-02/create-ticket.api.test.ts | Pass |
 | API-14 | API | AC-13 | GET /api/tickets/:ticketNumber for the owning Requester | 200; returned fields and attachments match stored data | server/tests/lab-02/ticket-detail.api.test.ts | Planned |
 | UI-02 | UI | AC-17 | Requester Selection loading state | Skeleton row shown, dropdown hidden, Continue disabled | client/tests/lab-02/DevRequesterSelect.test.tsx | Pass |
 | UI-03 | UI | AC-18 | Requester Selection with zero active requesters | Empty state shown, no dropdown, Continue disabled | client/tests/lab-02/DevRequesterSelect.test.tsx | Pass |
 | UI-04 | UI | AC-02 | Opening My Tickets with no Requester selected | Redirects to Requester Selection | client/tests/lab-02/RouteGuard.test.tsx | Pass |
 | UI-18 | UI | FR-02 | Select a requester and click Continue | Context + localStorage updated; navigates to My Tickets | client/tests/lab-02/DevRequesterSelect.test.tsx | Pass |
-| UI-05 | UI | AC-04 | Submit Create Ticket with empty Summary | Field message shown, API not called | client/src/.../CreateTicket.test.tsx | Planned |
-| UI-06 | UI | AC-05 | Submit Create Ticket with empty Description | Field message shown, API not called | client/src/.../CreateTicket.test.tsx | Planned |
-| UI-07 | UI | AC-07 | Select an oversized/invalid-type file | Rejected client-side before any upload call | client/src/.../CreateTicket.test.tsx | Planned |
-| UI-08 | UI | AC-08 | Create Ticket submit while API is down | Error banner shown; field values preserved | client/src/.../CreateTicket.test.tsx | Planned |
-| UI-09 | UI | AC-01 | Create Ticket success | Confirmation panel shows generated Ticket Number | client/src/.../CreateTicket.test.tsx | Planned |
+| UI-05 | UI | AC-04 | Submit Create Ticket with empty Summary | Field message shown, API not called | client/tests/lab-02/CreateTicket.test.tsx | Pass |
+| UI-06 | UI | AC-05 | Submit Create Ticket with empty Description | Field message shown, API not called | client/tests/lab-02/CreateTicket.test.tsx | Pass |
+| UI-07 | UI | AC-07 | Select an oversized/invalid-type file | Rejected client-side before any upload call | client/tests/lab-02/CreateTicket.test.tsx | Pass |
+| UI-08 | UI | AC-08 | Create Ticket submit while API is down | Error banner shown; field values preserved | client/tests/lab-02/CreateTicket.test.tsx | Pass |
+| UI-09 | UI | AC-01 | Create Ticket success | Confirmation panel shows generated Ticket Number | client/tests/lab-02/CreateTicket.test.tsx | Pass |
 | UI-10 | UI | AC-09, BR-21 | My Tickets with zero owned tickets | Empty state (not no-results) shown | client/src/.../MyTickets.test.tsx | Planned |
 | UI-11 | UI | AC-10, BR-21 | My Tickets with filters matching nothing | No-results state + Clear Filters shown | client/src/.../MyTickets.test.tsx | Planned |
 | UI-12 | UI | AC-11 | My Tickets search box | List narrows to matching tickets only | client/src/.../MyTickets.test.tsx | Planned |
