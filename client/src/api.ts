@@ -111,3 +111,48 @@ export async function createTicket(requesterId: number, input: CreateTicketInput
   if (!res.ok) throw new Error("Unable to create ticket");
   return res.json();
 }
+
+// -----------------------------------------------------------------------------
+// Lab 2 Issue 4 — My Tickets (docs/lab-02/api-spec.md §5).
+// -----------------------------------------------------------------------------
+export interface TicketListItem {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  categoryId: number;
+  requestedPriority: "LOW" | "MEDIUM" | "HIGH";
+  currentStatus: "NEW";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TicketListResult {
+  items: TicketListItem[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface TicketListQuery {
+  search?: string;
+  categoryId?: number;
+  requestedPriority?: string;
+  currentStatus?: string;
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+}
+
+export async function getMyTickets(requesterId: number, query: TicketListQuery): Promise<TicketListResult> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  }
+  const res = await fetch(`${API_URL}/api/tickets?${params.toString()}`, {
+    headers: { "X-Requester-Id": String(requesterId) },
+  });
+  if (!res.ok) throw new Error("Unable to load tickets");
+  return res.json();
+}
