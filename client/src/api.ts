@@ -162,6 +162,7 @@ export async function getMyTickets(requesterId: number, query: TicketListQuery):
 // -----------------------------------------------------------------------------
 export interface AttachmentInfo {
   id: number;
+  ticketId: number;
   originalFilename: string;
   sizeBytes: number;
   mimeType: string;

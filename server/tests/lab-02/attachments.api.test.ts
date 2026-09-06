@@ -51,6 +51,22 @@ describe("POST /api/tickets/:ticketNumber/attachments", () => {
     expect(res.body.removedAt).toBeNull();
   });
 
+  // Requested by review on PR #27 — api-spec.md §8 requires ticketId in metadata responses.
+  it("includes ticketId in the attachment metadata response (api-spec.md §8)", async () => {
+    const ticket = await createTicket(requesterA, "Attachment metadata shape test");
+    const added = await request(app)
+      .post(`/api/tickets/${ticket.ticketNumber}/attachments`)
+      .set("X-Requester-Id", String(requesterA))
+      .attach("file", TINY_PNG, { filename: "photo.png", contentType: "image/png" });
+
+    const metadata = await request(app)
+      .get(`/api/attachments/${added.body.id}`)
+      .set("X-Requester-Id", String(requesterA));
+
+    expect(metadata.status).toBe(200);
+    expect(metadata.body.ticketId).toBe(ticket.id);
+  });
+
   it("rejects adding a 6th active attachment (AC-06, BR-16)", async () => {
     const ticket = await createTicket(requesterA, "Five attachments already");
     for (let i = 0; i < 5; i++) {

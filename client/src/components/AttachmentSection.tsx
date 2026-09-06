@@ -112,6 +112,7 @@ export default function AttachmentSection({ requesterId, ticketNumber, attachmen
                   {a.originalFilename}
                 </span>{" "}
                 <span className="text-muted small">({Math.round(a.sizeBytes / 1024)} KB)</span>
+                <div className="text-muted small">Uploaded {new Date(a.uploadedAt).toLocaleDateString()}</div>
                 {a.removedAt && (
                   <div className="text-muted small">
                     Removed {new Date(a.removedAt).toLocaleDateString()} — {a.removedReason}

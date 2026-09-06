@@ -304,6 +304,7 @@ app.get("/api/tickets", requireRequester, async (req: Request, res: Response) =>
 
 function serializeAttachment(a: {
   id: number;
+  ticketId: number;
   originalFilename: string;
   sizeBytes: number;
   mimeType: string;
@@ -313,6 +314,7 @@ function serializeAttachment(a: {
 }) {
   return {
     id: a.id,
+    ticketId: a.ticketId,
     originalFilename: a.originalFilename,
     sizeBytes: a.sizeBytes,
     mimeType: a.mimeType,

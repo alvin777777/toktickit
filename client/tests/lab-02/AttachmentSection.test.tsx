@@ -7,6 +7,7 @@ import * as api from "../../src/api.js";
 function attachment(overrides: Partial<api.AttachmentInfo> = {}): api.AttachmentInfo {
   return {
     id: 1,
+    ticketId: 1,
     originalFilename: "photo.png",
     sizeBytes: 20480,
     mimeType: "image/png",
@@ -72,6 +73,29 @@ describe("AttachmentSection", () => {
     expect(screen.getByText(/duplicate upload/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /download/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^remove$/i })).not.toBeInTheDocument();
+  });
+
+  // Requested by review on PR #27 — uploaded date must be visible for both active and
+  // removed attachments per ui-spec.md §5.5, not just filename/size.
+  it("shows the uploaded date for both active and removed attachments", () => {
+    const active = attachment({ id: 1, uploadedAt: "2026-09-01T00:00:00.000Z" });
+    const removed = attachment({
+      id: 2,
+      uploadedAt: "2026-09-02T00:00:00.000Z",
+      removedAt: "2026-09-03T00:00:00.000Z",
+      removedReason: "No longer needed",
+    });
+    render(
+      <AttachmentSection
+        requesterId={1}
+        ticketNumber="TKT-2026-000001"
+        attachments={[active, removed]}
+        onChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText(new RegExp(`Uploaded ${new Date("2026-09-01").toLocaleDateString()}`))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`Uploaded ${new Date("2026-09-02").toLocaleDateString()}`))).toBeInTheDocument();
   });
 
   it("requires a reason before confirming removal", async () => {

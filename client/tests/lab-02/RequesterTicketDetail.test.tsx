@@ -43,6 +43,8 @@ describe("RequesterTicketDetail", () => {
   // UI-14 (AC-13) — all header fields read-only, matching the stored ticket.
   it("renders the ticket header fields read-only, matching the stored ticket", async () => {
     vi.spyOn(api, "getTicketDetail").mockResolvedValue(TICKET);
+    vi.spyOn(api, "getCategories").mockResolvedValue([{ id: 1, name: "Hardware" }]);
+    vi.spyOn(api, "getRelatedSystems").mockResolvedValue([{ id: 1, name: "Corporate Laptop" }]);
     renderDetail();
 
     expect(await screen.findByDisplayValue("TKT-2026-000001")).toBeInTheDocument();
@@ -51,9 +53,16 @@ describe("RequesterTicketDetail", () => {
     expect(screen.getByText("MEDIUM")).toBeInTheDocument();
     expect(screen.getByText("NEW")).toBeInTheDocument();
 
+    // Requested by review on PR #27 — Category, Related System, and Requester are also
+    // required read-only header fields per ui-spec.md §5.5.
+    expect(await screen.findByDisplayValue("Jennifer Anderson")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("Hardware")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("Corporate Laptop")).toBeInTheDocument();
+
     // read-only: no field can be typed into
     expect(screen.getByDisplayValue("TKT-2026-000001")).toHaveAttribute("readOnly");
     expect(screen.getByDisplayValue("Laptop battery drains quickly")).toHaveAttribute("readOnly");
+    expect(screen.getByDisplayValue("Hardware")).toHaveAttribute("readOnly");
   });
 
   it("shows a not-found message for a ticket that doesn't exist or isn't owned (BR-22)", async () => {

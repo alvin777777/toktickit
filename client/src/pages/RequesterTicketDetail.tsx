@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { AttachmentInfo, TicketDetail, getTicketDetail } from "../api.js";
+import {
+  AttachmentInfo,
+  Category,
+  RelatedSystem,
+  TicketDetail,
+  getCategories,
+  getRelatedSystems,
+  getTicketDetail,
+} from "../api.js";
 import { useRequester } from "../context/RequesterContext.js";
 import AttachmentSection from "../components/AttachmentSection.js";
 
@@ -18,6 +26,19 @@ export default function RequesterTicketDetail() {
   const { requester } = useRequester();
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [relatedSystems, setRelatedSystems] = useState<RelatedSystem[]>([]);
+
+  useEffect(() => {
+    // ui-spec.md §5.5 — Category/Related System are shown by name, not id; a failure here
+    // shouldn't block the ticket itself from loading, so it's a best-effort side load.
+    Promise.all([getCategories(), getRelatedSystems()])
+      .then(([cats, systems]) => {
+        setCategories(cats);
+        setRelatedSystems(systems);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!requester || !ticketNumber) return;
@@ -102,6 +123,28 @@ export default function RequesterTicketDetail() {
             style={readonlyField}
             readOnly
             value={new Date(ticket.ticketDate).toLocaleString()}
+          />
+        </div>
+        <div className="col-md-4">
+          <label className="form-label fw-semibold small">Requester</label>
+          <input className="form-control" style={readonlyField} readOnly value={requester?.name ?? ""} />
+        </div>
+        <div className="col-md-4">
+          <label className="form-label fw-semibold small">Category</label>
+          <input
+            className="form-control"
+            style={readonlyField}
+            readOnly
+            value={categories.find((c) => c.id === ticket.categoryId)?.name ?? "—"}
+          />
+        </div>
+        <div className="col-md-4">
+          <label className="form-label fw-semibold small">Related System</label>
+          <input
+            className="form-control"
+            style={readonlyField}
+            readOnly
+            value={relatedSystems.find((s) => s.id === ticket.relatedSystemId)?.name ?? "—"}
           />
         </div>
         <div className="col-md-4">
