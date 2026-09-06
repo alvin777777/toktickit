@@ -146,5 +146,90 @@ Partner's response: "LGTM"
 Outcome: fixed and merged.
 
 ## Pull Requests I reviewed for my partner
-My comment: <...>
-Partner's response: <...>
+
+Partner's repo: https://github.com/Ohmmykung09/toktickit
+
+| PR | Branch/Scope | Outcome |
+|----|--------|------------------|
+| [#17](https://github.com/Ohmmykung09/toktickit/pull/17) | Lab 2: Prepare specification, API contract, UI specification, and test plan | Changes requested (idempotency gap) → fixed, approved ("Lgtm"), merged |
+| [#18](https://github.com/Ohmmykung09/toktickit/pull/18) | Lab 2: Add requester ticket data model, migrations, and seed data | Comment (stricter test assertion) → fixed, approved, merged |
+| [#19](https://github.com/Ohmmykung09/toktickit/pull/19) | Lab 2: Add Development Requester selection | Comment (apparent duplicate logic) → clarified, approved, merged |
+| [#20](https://github.com/Ohmmykung09/toktickit/pull/20) | Lab 2: Add Create Ticket workflow | Comment (diff review gap) → clarified, approved, merged |
+| [#21](https://github.com/Ohmmykung09/toktickit/pull/21) | Lab 2: Add My Tickets and Ticket Detail | Comment (enum/dropdown case-mismatch bug) → fixed, approved, merged |
+| [#22](https://github.com/Ohmmykung09/toktickit/pull/22) | Lab 2: Add ticket attachments | Comment (unsafe `.json()` parse on 204/non-JSON responses) → fixed, approved, merged |
+| [#23](https://github.com/Ohmmykung09/toktickit/pull/23) | Lab 2: Complete quality evidence and integrate requester workflow | Comment (Prisma object leaking internal fields via API) → fixed, approved, merged |
+
+### PR #17 — my comment
+> [CONFIRMED] ตาราง status code ระบุว่า 409 เป็นโค้ดมาตรฐาน แต่ไม่มี endpoint ไหนอ้างถึงเลย และ BR-12
+> (กันส่งซ้ำ) ป้องกันแค่ฝั่ง frontend (disable ปุ่ม) เท่านั้น ไม่มี backend check เลย → ถ้ามี
+> retry/ยิงซ้ำจากที่อื่นที่ไม่ใช่ UI จะสร้างตั๋วซ้ำได้
+
+**Partner's response:** Added backend idempotency via `Idempotency-Key` — `201` for a new request,
+`200` for an identical retry, `409` for a conflicting reuse of the same key; added a test (API-07)
+verifying retries create only one ticket.
+
+My follow-up: "Lgtm"
+
+### PR #18 — my comment
+> Since the API is expected to return the complete active list, should we assert the exact expected
+> array (or at least its length) instead of only using `arrayContaining()`? This would make the test
+> stricter and help catch unexpected extra records.
+
+**Partner's response:** Fixed — lookup API tests now assert the complete expected arrays for all 7
+active related systems and 4 active development requesters instead of a partial match.
+
+My follow-up: "Ok good job ohm"
+
+### PR #19 — my comment
+> checkSystem() มี logic ซ้ำ/ซ้อนกัน — ตรง diff มีการประกาศ checkSystem() ซ้ำใน function และมีทั้ง
+> การ fetch /api/categories สองรูปแบบ รวมถึงมี try/catch ซ้อนที่ดูเหมือนมาจาก code รุ่นเก่า + code
+> รุ่นใหม่ถูกเอามาทับกัน
+
+**Partner's response:** Checked the final source on the branch — only one `checkSystem()`, one
+`/api/categories` call, one try/catch; the apparent duplication was the removed Lab 1 implementation
+shown alongside the replacement in the diff view.
+
+My follow-up: "Good job ohm I'm proud of you"
+
+### PR #20 — my comment
+> PR บอกว่ามีการ generate Ticket Number แต่จาก diff ที่เปิดได้ ส่วน implementation ของ
+> ticket-service.ts ยังไม่ได้แสดงครบในหน้า diff ที่ผมอ่านได้
+
+**Partner's response:** `server/src/ticket-service.ts` is a new 95-line file in this PR (GitHub had
+collapsed it in the diff view); Ticket Number generation uses a `TKT-YYYYMMDD-NNNN` prefix and a
+daily sequence inside a serializable Prisma transaction, verified by an API test.
+
+My follow-up: "Well done"
+
+### PR #21 — my comment
+> ข้างบนประกาศ type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' แต่ dropdown ส่ง Low / Medium /
+> High / Critical — ถ้า backend เทียบตรงๆ filter นี้จะไม่คืนอะไรเลย ลองเทสด้วยของจริงดู
+
+**Partner's response:** Fixed — the API already normalized the query value to the Prisma enum; added
+an integration test calling `/api/tickets?priority=High` with the exact title-case value the
+dropdown sends, verifying only High-priority tickets are returned.
+
+My follow-up: "Good job"
+
+### PR #22 — my comment
+> ใน removeAttachment เรียก await response.json() ทุกกรณี ถ้า DELETE ตอบ 204 No Content (ซึ่งเป็น
+> convention ปกติ) .json() จะ throw SyntaxError → ตกเข้า catch → ผู้ใช้เห็นข้อความ "Unexpected end of
+> JSON input" ทั้งที่ไฟล์ถูกลบไปแล้วจริง เคสเดียวกันกับ uploadAttachment — ถ้า multer เด้ง 413 หรือ
+> express error handler ตอบเป็น HTML ก็พังแบบเดียวกัน
+
+**Partner's response:** Fixed — `removeAttachment` now treats a 204 No Content DELETE as success
+without parsing JSON; upload/delete errors now parse JSON only when the response actually is JSON,
+with a specific message for 413; added UI tests for both the 204 delete and a non-JSON 413 upload.
+
+My follow-up: "Good job"
+
+### PR #23 — my comment
+> attachmentInfo() เขียนเป็น return attachment เฉยๆ ถึง type จะประกาศแค่ 5 field แต่ runtime มันคืน
+> object เต็มจาก Prisma รวม storedFileName, ticketId, removedByRequesterId ออกไปทาง API ด้วย ต้อง
+> destructure จริงๆ เหมือนที่ทำใน /api/tickets/:ticketNumber
+
+**Partner's response:** Fixed — `attachmentInfo()` now explicitly constructs the public attachment
+metadata instead of returning the raw Prisma record; API tests now assert the exact response shape
+so internal fields (storedFileName, ticketId, removedAt, removedByRequesterId) can't leak.
+
+Outcome: all 7 reviewed, commented on with real issues found, fixed by the partner, and merged.
