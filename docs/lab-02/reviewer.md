@@ -11,7 +11,7 @@
 | [#25](https://github.com/alvin777777/toktickit/pull/25) | feature/7-create-ticket | Changes requested (4 edge-case bugs) → all fixed, approved ("LGTM kub"), merged |
 | [#26](https://github.com/alvin777777/toktickit/pull/26) | feature/8-my-tickets | Changes requested (3 edge-case bugs) → all fixed, approved ("LGTM"), merged |
 | [#27](https://github.com/alvin777777/toktickit/pull/27) | feature/9-ticket-detail-attachments | Changes requested (3 missing contract fields) → all fixed, approved ("LGTM"), merged |
-| | feature/10-responsive-qa-release | |
+| [#28](https://github.com/alvin777777/toktickit/pull/28) | feature/10-responsive-qa-release | Changes requested (2 breakpoint bugs + unreproducible test command) → all fixed (+1 extra bug found on my own re-check), approved ("LGTM"), merged |
 
 (Fill in each row's comment/response as PRs are reviewed — same format as docs/lab-01/reviewer.md.)
 
@@ -117,6 +117,29 @@ attachment list never showed `uploadedAt` for either active or removed items.
 > Thanks — all 3 fixed: added Requester/Category/Related System to the header; added `ticketId` to
 > the attachment serializer and type; added the uploaded date display for both active and removed
 > attachments. 34 server + 30 client tests pass. Re-requesting review.
+
+Partner's response: "LGTM"
+
+Outcome: fixed and merged.
+
+### PR #28 — reviewer comment I received
+> Requesting changes because the responsive QA does not yet catch the tablet layouts required by
+> the UI spec, and the documented E2E evidence is not reproducible with the command in tests.md.
+
+Specifically (inline comments): the My Tickets table/card breakpoint was `md` (768px) instead of
+`lg` (992px), so tablet showed the dense desktop table instead of cards per ui-spec.md §5.4; Create
+Ticket/Ticket Detail's field rows used `col-md-4`, giving 3 columns at 768px instead of the 2
+required on tablet (§6); and `tests.md`'s documented test command (`npx playwright test
+e2e/lab-02` from repo root) didn't match where the `e2e/` package/config actually live, so the
+evidence wasn't reproducible as written.
+
+### How I responded
+> Thanks — both fixed, plus one more I found while re-verifying: My Tickets breakpoint moved to
+> `lg`; Create Ticket/Ticket Detail field rows changed to `col-md-6 col-lg-4`; and while re-checking
+> screenshots after those fixes, found the My Tickets filter row itself clipping labels at tablet
+> width, restructured to 2-per-row. Also replaced the screenshot-only checks with real per-viewport
+> assertions and fixed the tests.md command. 34 server + 30 client + 15 E2E tests pass (run twice
+> for stability). Re-requesting review.
 
 Partner's response: "LGTM"
 
