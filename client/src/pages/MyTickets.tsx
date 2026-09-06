@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Category, TicketListItem, getCategories, getMyTickets } from "../api.js";
 import { useRequester } from "../context/RequesterContext.js";
@@ -20,8 +20,12 @@ export default function MyTickets() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [items, setItems] = useState<TicketListItem[]>([]);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  // Guards against out-of-order responses: a slow request for an earlier search term must never
+  // overwrite the result of a newer one (AC-11). Bumped at the start of every load() call.
+  const requestIdRef = useRef(0);
 
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -48,6 +52,7 @@ export default function MyTickets() {
 
   async function load() {
     if (!requester) return;
+    const requestId = ++requestIdRef.current;
     setLoadState("loading");
     try {
       const result = await getMyTickets(requester.id, {
@@ -59,11 +64,14 @@ export default function MyTickets() {
         sortDir,
         page,
       });
+      if (requestId !== requestIdRef.current) return; // a newer request has since started
       setItems(result.items);
+      setPageSize(result.pageSize);
       setTotalPages(result.totalPages);
       setTotalItems(result.totalItems);
       setLoadState("success");
     } catch {
+      if (requestId !== requestIdRef.current) return;
       setLoadState("error");
     }
   }
@@ -274,8 +282,7 @@ export default function MyTickets() {
 
           <div className="d-flex justify-content-between align-items-center mt-3">
             <span className="text-muted small">
-              Showing {(page - 1) * items.length + (items.length > 0 ? 1 : 0)} to {(page - 1) * 10 + items.length} of{" "}
-              {totalItems} tickets
+              Showing {(page - 1) * pageSize + 1} to {(page - 1) * pageSize + items.length} of {totalItems} tickets
             </span>
             <div className="btn-group">
               <button

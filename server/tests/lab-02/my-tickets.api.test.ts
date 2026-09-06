@@ -78,6 +78,18 @@ describe("GET /api/tickets", () => {
     expect(res.body.pageSize).toBe(10);
   });
 
+  // Requested by review on PR #26 — parseInt("2abc") used to silently become 2.
+  it("falls back to defaults for partially-numeric page/pageSize (BR-13)", async () => {
+    const res = await request(app)
+      .get("/api/tickets")
+      .query({ page: "2abc", pageSize: "10px" })
+      .set("X-Requester-Id", String(requesterA));
+
+    expect(res.status).toBe(200);
+    expect(res.body.page).toBe(1);
+    expect(res.body.pageSize).toBe(10);
+  });
+
   it("requires a valid X-Requester-Id (401)", async () => {
     const res = await request(app).get("/api/tickets");
     expect(res.status).toBe(401);

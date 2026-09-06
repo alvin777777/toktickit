@@ -230,16 +230,20 @@ const VALID_STATUSES = new Set(["NEW"]);
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
 
+// `parseInt` silently accepts partially-numeric strings ("2abc" -> 2), so a malformed query
+// param would still drive pagination instead of falling back (BR-13). `Number()` rejects the
+// whole string as NaN unless every character is part of a valid number.
+function parsePositiveInt(value: unknown, fallback: number): number {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
 app.get("/api/tickets", requireRequester, async (req: Request, res: Response) => {
   const prisma = getPrisma();
 
   // BR-13 — invalid page/pageSize fall back to defaults rather than erroring.
-  const page = Math.max(1, Number.parseInt(String(req.query.page ?? "1"), 10) || 1);
-  const requestedPageSize = Number.parseInt(String(req.query.pageSize ?? DEFAULT_PAGE_SIZE), 10);
-  const pageSize =
-    Number.isInteger(requestedPageSize) && requestedPageSize > 0
-      ? Math.min(requestedPageSize, MAX_PAGE_SIZE)
-      : DEFAULT_PAGE_SIZE;
+  const page = parsePositiveInt(req.query.page, 1);
+  const pageSize = Math.min(parsePositiveInt(req.query.pageSize, DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE);
 
   const sortByParam = String(req.query.sortBy ?? "createdAt");
   const sortBy = SORTABLE_FIELDS.has(sortByParam) ? sortByParam : "createdAt";
@@ -256,7 +260,7 @@ app.get("/api/tickets", requireRequester, async (req: Request, res: Response) =>
     ];
   }
 
-  const categoryId = Number.parseInt(String(req.query.categoryId ?? ""), 10);
+  const categoryId = Number(req.query.categoryId);
   if (Number.isInteger(categoryId)) where.categoryId = categoryId;
 
   const requestedPriority = String(req.query.requestedPriority ?? "");
