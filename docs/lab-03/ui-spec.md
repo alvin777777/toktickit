@@ -220,14 +220,23 @@ No horizontal page scrolling anywhere (automated check in `e2e/lab-03/responsive
 
 ## 12. Visual Inspection Checklist (completed in Issue 6)
 
-To be filled with evidence from `artifacts/lab-03/screenshots/`:
-- [ ] Zen Green tokens consistent across Login, Change Password, Queue, IT Staff Detail, Users
-- [ ] Role-specific navigation correct for all three roles (no unauthorized destination rendered)
-- [ ] Status / priority / role badges use the single shared maps (§1.1–§1.3) on every screen
-- [ ] Editable vs read-only fields distinguishable at a glance (ivory vs white)
-- [ ] Validation messages directly under their fields, none overlapping
-- [ ] Visible focus ring on every interactive element
-- [ ] No clipped labels, no truncated buttons, no overlap at any breakpoint
-- [ ] No horizontal page overflow at desktop / tablet / mobile (automated)
-- [ ] Internal Notes visibly distinct from Public Comments
-- [ ] Screenshots captured: `artifacts/lab-03/screenshots/{authentication,staff-queue,staff-ticket-detail,user-management}/{desktop,tablet,mobile}.png`
+Completed against the 15 screenshots in `artifacts/lab-03/screenshots/` produced by
+`e2e/lab-03/responsive.spec.ts` on a freshly seeded database (desktop 1280px, tablet 820px, mobile
+390px), plus the automated assertions in that spec (no horizontal overflow on every screen, table
+vs cards at the `lg` breakpoint for the Queue and Users, 3/2/1-column field rows on IT Staff Ticket
+Detail). Every item below was checked by eye on the screenshots, not only by the assertions.
+
+- [x] Zen Green tokens consistent across Login, Change Password, Queue, IT Staff Detail, Users — same `#006B3C` header, ivory read-only fields, white editable fields, green primary buttons on all five
+- [x] Role-specific navigation correct for all three roles — Requester: My Tickets / Create Ticket; IT Staff: Ticket Queue; Administrator: Ticket Queue / Users (asserted in `e2e/lab-03/authentication.spec.ts` and `user-administration.spec.ts`; no unauthorized destination rendered, forbidden card on direct URL)
+- [x] Status / priority / role badges use the single shared maps (§1.1–§1.3) on every screen — `components/badges.tsx` and `ROLE_BADGE` are the only sources; Req./IT priorities labelled where they sit side by side
+- [x] Editable vs read-only fields distinguishable at a glance — ticket information card ivory, operations card white, confirmed on the desktop and tablet detail screenshots
+- [x] Validation messages directly under their fields, none overlapping — Login (empty fields), Change Password (rule text + mismatch), Users panel (name/email/password) checked at mobile width
+- [x] Visible focus ring on every interactive element — Bootstrap focus styles kept; confirm boxes move focus to their primary button (`ConfirmBox`)
+- [x] No clipped labels, no truncated buttons, no overlap at any breakpoint — queue filter row wraps 2-per-row on tablet and stacks on mobile; count chips wrap under the title on mobile; Users panel stacks under the list below `lg`
+- [x] No horizontal page overflow at desktop / tablet / mobile — automated `scrollWidth <= clientWidth` check passes for all 4 screens × 3 viewports (12/12), including with the Users side panel open and the Internal Notes tab active
+- [x] Internal Notes visibly distinct from Public Comments — amber surface, amber left border, lock caption "Internal — not visible to the requester" (desktop + tablet detail screenshots); the Requester detail page contains no Internal Notes tab at all
+- [x] Screenshots captured: `artifacts/lab-03/screenshots/{authentication,staff-queue,staff-ticket-detail,user-management}/{desktop,tablet,mobile}.png` (12 files) plus `authentication/change-password-{desktop,tablet,mobile}.png` (3 files)
+
+One finding fixed during this pass: the User Management card layout's **Edit** buttons had no
+accessible name (only the table rows did), so keyboard/screen-reader users on small screens could
+not tell whose account a button edited — both layouts now carry `aria-label="Edit <name>"`.
