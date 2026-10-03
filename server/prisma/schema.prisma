@@ -37,7 +37,8 @@ model User {
   mustChangePassword Boolean   @default(true)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
-  tickets            Ticket[]
+  tickets            Ticket[]  @relation("TicketRequester")
+  ownedTickets       Ticket[]  @relation("TicketOwner")
   sessions           Session[]
 }
 
@@ -68,8 +69,16 @@ enum Priority {
   HIGH
 }
 
+// Lab 3 Issue 3 — full workflow (docs/lab-03/specification.md BR-25/BR-30).
 enum TicketStatus {
   NEW
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_REQUESTER
+  RESOLVED
+  CLOSED
+  REOPENED
+  CANCELLED
 }
 
 // Per-year counter backing BR-01's ticket-number format (TKT-{year}-{6 digits}); incremented
@@ -83,7 +92,14 @@ model Ticket {
   id                Int           @id @default(autoincrement())
   ticketNumber      String        @unique
   requesterId       Int
-  requester         User          @relation(fields: [requesterId], references: [id])
+  requester         User          @relation("TicketRequester", fields: [requesterId], references: [id])
+  // Lab 3 Issue 3 — zero or one Ticket Owner (active IT Staff / Administrator, BR-23), IT Priority
+  // (copied from requestedPriority at creation, BR-24), and the Requester's "appears resolved"
+  // signal (BR-32).
+  ownerId           Int?
+  owner             User?         @relation("TicketOwner", fields: [ownerId], references: [id])
+  itPriority        Priority
+  requesterResolvedAt DateTime?
   categoryId        Int
   category          Category      @relation(fields: [categoryId], references: [id])
   relatedSystemId   Int
@@ -98,6 +114,9 @@ model Ticket {
 
   @@index([requesterId])
   @@index([createdAt])
+  @@index([ownerId])
+  @@index([currentStatus])
+  @@index([itPriority])
 }
 
 // Lab 2 Issue 3 (created here since Create Ticket needs attachment upload) — soft-removal

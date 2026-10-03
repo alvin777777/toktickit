@@ -23,7 +23,10 @@ const TICKET: api.TicketDetail = {
   summary: "Laptop battery drains quickly",
   description: "The battery drains much faster than usual, even when idle.",
   requestedPriority: "MEDIUM",
+  itPriority: "MEDIUM",
   currentStatus: "NEW",
+  owner: null,
+  requesterResolvedAt: null,
   attachments: [],
 };
 
@@ -42,12 +45,13 @@ describe("RequesterTicketDetail", () => {
     expect(await screen.findByDisplayValue("TKT-2026-000001")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Laptop battery drains quickly")).toBeInTheDocument();
     expect(screen.getByDisplayValue(/battery drains much faster/i)).toBeInTheDocument();
-    expect(screen.getByText("MEDIUM")).toBeInTheDocument();
+    expect(screen.getAllByText("MEDIUM")).toHaveLength(2); // Requested Priority + IT Priority (Lab 3 FR-12)
     expect(screen.getByText("New")).toBeInTheDocument(); // humanized status label (Lab 3 ui-spec §1.2)
 
     // Requested by review on PR #27 — Category, Related System, and Requester are also
     // required read-only header fields per ui-spec.md §5.5.
     expect(await screen.findByDisplayValue("Jennifer Anderson")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Unassigned")).toBeInTheDocument(); // Ticket Owner (Lab 3 FR-12)
     expect(await screen.findByDisplayValue("Hardware")).toBeInTheDocument();
     expect(await screen.findByDisplayValue("Corporate Laptop")).toBeInTheDocument();
 

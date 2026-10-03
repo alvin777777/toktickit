@@ -179,6 +179,24 @@ export default function RequesterTicketDetail() {
             <StatusBadge status={ticket.currentStatus} />
           </div>
         </div>
+        <div className="col-md-6 col-lg-4">
+          <label htmlFor="detail-owner" className="form-label fw-semibold small">
+            Ticket Owner
+          </label>
+          <input
+            id="detail-owner"
+            className="form-control"
+            style={readonlyField}
+            readOnly
+            value={ticket.owner?.name ?? "Unassigned"}
+          />
+        </div>
+        <div className="col-md-6 col-lg-4">
+          <label className="form-label fw-semibold small">IT Priority</label>
+          <div>
+            <span className={`badge ${PRIORITY_BADGE[ticket.itPriority]}`}>{ticket.itPriority}</span>
+          </div>
+        </div>
       </div>
 
       <div className="mb-3">
