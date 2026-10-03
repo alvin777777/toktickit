@@ -110,6 +110,28 @@ async function seedTickets() {
     }
   }
   console.log(`Seeded ${SEED_TICKETS.length} tickets (${created} new).`);
+
+  // Lab 3 Issue 4 — example Public Comments and Internal Notes (no sensitive content). Identified by
+  // (ticket, author, body) so re-running never duplicates them.
+  const entries: { summary: string; requester: string; author: string; body: string; internal?: boolean }[] = [
+    { summary: "Laptop battery drains quickly", requester: T.jen, author: T.emily, body: "We are investigating the issue on your device. We'll update you shortly." },
+    { summary: "Laptop battery drains quickly", requester: T.jen, author: T.jen, body: "Thank you for the update. Please let me know if you need any additional information." },
+    { summary: "Laptop battery drains quickly", requester: T.jen, author: T.emily, body: "Battery health report shows 71% capacity; checking warranty status before ordering a replacement.", internal: true },
+    { summary: "Cannot connect to VPN", requester: T.sarah, author: T.kevin, body: "Could you confirm which VPN client version you are running? Settings → About." },
+    { summary: "Cannot connect to VPN", requester: T.sarah, author: T.kevin, body: "Same symptoms as last week's certificate rollout — likely needs the new root cert pushed.", internal: true },
+    { summary: "Email not syncing on mobile", requester: T.david, author: T.emily, body: "Please remove and re-add the account on your phone and let us know if sync resumes." },
+  ];
+  for (const e of entries) {
+    const ticket = await prisma.ticket.findFirst({ where: { requesterId: users[e.requester], summary: e.summary } });
+    if (!ticket) continue;
+    const data = { ticketId: ticket.id, authorId: users[e.author], body: e.body };
+    if (e.internal) {
+      if (!(await prisma.internalNote.findFirst({ where: data }))) await prisma.internalNote.create({ data });
+    } else if (!(await prisma.ticketComment.findFirst({ where: data }))) {
+      await prisma.ticketComment.create({ data });
+    }
+  }
+  console.log(`Seeded ${entries.length} example comments/notes.`);
 }
 
 async function main() {

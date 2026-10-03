@@ -2,7 +2,8 @@ import { Router, Request, Response } from "express";
 import type { Prisma } from "@prisma/client";
 import { getPrisma } from "../prisma.js";
 import { asStaff } from "../middleware/auth.js";
-import { TICKET_STATUSES, isPriority, isTicketStatus } from "../services/ticketWorkflow.js";
+import { TICKET_STATUSES, allowedTransitions, canTransition, isPriority, isTerminal, isTicketStatus } from "../services/ticketWorkflow.js";
+import { authorSelect, serializeEntry, serializeStaffTicket, staffDetailInclude, validateEntryBody } from "../services/ticketSerializers.js";
 
 // Lab 3 Issue 3 — IT Staff endpoints (docs/lab-03/api-spec.md §4). Every route is guarded by
 // asStaff (requireAuth → requirePasswordChanged → requireRole IT_STAFF|ADMIN) before any lookup,
@@ -113,6 +114,158 @@ staffRouter.get("/assignees", async (_req: Request, res: Response) => {
     res.status(200).json(users);
   } catch {
     res.status(500).json({ error: "Unable to load assignees" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Lab 3 Issue 4 — IT Staff Ticket Detail and operations (api-spec.md §4.3–§4.9)
+// ---------------------------------------------------------------------------
+async function loadTicket(ticketNumber: string) {
+  return getPrisma().ticket.findUnique({ where: { ticketNumber }, include: staffDetailInclude });
+}
+
+function terminalConflict(res: Response) {
+  return res.status(409).json({ error: "This ticket is closed or cancelled.", code: "TICKET_TERMINAL" });
+}
+
+// §4.3
+staffRouter.get("/tickets/:ticketNumber", async (req: Request, res: Response) => {
+  try {
+    const ticket = await loadTicket(req.params.ticketNumber);
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    res.status(200).json(serializeStaffTicket(ticket));
+  } catch {
+    res.status(500).json({ error: "Unable to load ticket" });
+  }
+});
+
+// §4.4 — Claim (BR-26/BR-27/BR-28)
+staffRouter.post("/tickets/:ticketNumber/claim", async (req: Request, res: Response) => {
+  try {
+    const ticket = await loadTicket(req.params.ticketNumber);
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    if (isTerminal(ticket.currentStatus)) return terminalConflict(res);
+    if (ticket.ownerId && ticket.ownerId !== req.user!.id) {
+      return res.status(409).json({
+        error: `This ticket is already owned by ${ticket.owner?.name ?? "another user"}.`,
+        code: "ALREADY_ASSIGNED",
+      });
+    }
+    const updated = await getPrisma().ticket.update({
+      where: { id: ticket.id },
+      data: { ownerId: req.user!.id, ...(ticket.currentStatus === "NEW" ? { currentStatus: "OPEN" } : {}) },
+      include: staffDetailInclude,
+    });
+    res.status(200).json(serializeStaffTicket(updated));
+  } catch {
+    res.status(500).json({ error: "Unable to claim ticket" });
+  }
+});
+
+// §4.5 — Assign / reassign / unassign (BR-23/BR-26/BR-28/BR-29)
+staffRouter.patch("/tickets/:ticketNumber/owner", async (req: Request, res: Response) => {
+  const raw = req.body?.ownerId;
+  if (raw !== null && !(Number.isInteger(raw) && raw > 0)) {
+    return res.status(400).json({ error: "Invalid owner", fields: { ownerId: "Select an active IT Staff or Administrator." } });
+  }
+  try {
+    const prisma = getPrisma();
+    const ticket = await loadTicket(req.params.ticketNumber);
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    if (isTerminal(ticket.currentStatus)) return terminalConflict(res);
+
+    if (raw === null) {
+      if (ticket.currentStatus === "RESOLVED") {
+        return res.status(409).json({ error: "A resolved ticket must keep its owner.", code: "OWNER_REQUIRED" });
+      }
+    } else {
+      const assignee = await prisma.user.findUnique({ where: { id: raw } });
+      if (!assignee || !assignee.isActive || assignee.role === "REQUESTER") {
+        return res.status(400).json({ error: "Invalid owner", fields: { ownerId: "Select an active IT Staff or Administrator." } });
+      }
+    }
+    const updated = await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { ownerId: raw, ...(raw !== null && ticket.currentStatus === "NEW" ? { currentStatus: "OPEN" } : {}) },
+      include: staffDetailInclude,
+    });
+    res.status(200).json(serializeStaffTicket(updated));
+  } catch {
+    res.status(500).json({ error: "Unable to update ticket owner" });
+  }
+});
+
+// §4.6 — IT Priority (BR-24/BR-28)
+staffRouter.patch("/tickets/:ticketNumber/it-priority", async (req: Request, res: Response) => {
+  const itPriority = req.body?.itPriority;
+  if (!isPriority(itPriority)) {
+    return res.status(400).json({ error: "Invalid IT priority", fields: { itPriority: "IT priority must be LOW, MEDIUM, or HIGH." } });
+  }
+  try {
+    const ticket = await loadTicket(req.params.ticketNumber);
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    if (isTerminal(ticket.currentStatus)) return terminalConflict(res);
+    const updated = await getPrisma().ticket.update({ where: { id: ticket.id }, data: { itPriority }, include: staffDetailInclude });
+    res.status(200).json(serializeStaffTicket(updated));
+  } catch {
+    res.status(500).json({ error: "Unable to update IT priority" });
+  }
+});
+
+// §4.7 — Status transition (BR-29/BR-30)
+staffRouter.patch("/tickets/:ticketNumber/status", async (req: Request, res: Response) => {
+  const status = req.body?.status;
+  if (!isTicketStatus(status)) return res.status(400).json({ error: "Invalid status", fields: { status: "Unknown status." } });
+  try {
+    const ticket = await loadTicket(req.params.ticketNumber);
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    if (!canTransition(ticket.currentStatus, status)) {
+      return res.status(409).json({
+        error: `Cannot move from ${ticket.currentStatus} to ${status}.`,
+        code: "INVALID_TRANSITION",
+        allowed: allowedTransitions(ticket.currentStatus),
+      });
+    }
+    if (status === "RESOLVED" && !ticket.ownerId) {
+      return res.status(409).json({ error: "Assign a ticket owner before resolving.", code: "OWNER_REQUIRED" });
+    }
+    const updated = await getPrisma().ticket.update({ where: { id: ticket.id }, data: { currentStatus: status }, include: staffDetailInclude });
+    res.status(200).json(serializeStaffTicket(updated));
+  } catch {
+    res.status(500).json({ error: "Unable to update status" });
+  }
+});
+
+// §4.8 / §4.9 — Internal Notes (BR-35..BR-38). The asStaff guard on this router already rejected
+// Requesters (403) before we get here, so no note content or ticket existence leaks (BR-18).
+staffRouter.get("/tickets/:ticketNumber/internal-notes", async (req: Request, res: Response) => {
+  try {
+    const ticket = await getPrisma().ticket.findUnique({ where: { ticketNumber: req.params.ticketNumber }, select: { id: true } });
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    const notes = await getPrisma().internalNote.findMany({
+      where: { ticketId: ticket.id },
+      orderBy: { createdAt: "asc" },
+      include: { author: authorSelect },
+    });
+    res.status(200).json(notes.map(serializeEntry));
+  } catch {
+    res.status(500).json({ error: "Unable to load internal notes" });
+  }
+});
+
+staffRouter.post("/tickets/:ticketNumber/internal-notes", async (req: Request, res: Response) => {
+  const { body, error } = validateEntryBody(req.body?.body);
+  if (error) return res.status(400).json({ error: "Invalid note", fields: { body: "Note must be 1-2000 characters." } });
+  try {
+    const ticket = await getPrisma().ticket.findUnique({ where: { ticketNumber: req.params.ticketNumber }, select: { id: true } });
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    const note = await getPrisma().internalNote.create({
+      data: { ticketId: ticket.id, authorId: req.user!.id, body: body! },
+      include: { author: authorSelect },
+    });
+    res.status(201).json(serializeEntry(note));
+  } catch {
+    res.status(500).json({ error: "Unable to add internal note" });
   }
 });
 

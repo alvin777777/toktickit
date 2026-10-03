@@ -9,6 +9,7 @@ import { getPrisma } from "./prisma.js";
 import { asRequester, authenticated } from "./middleware/auth.js";
 import { authRouter } from "./routes/auth.js";
 import { staffRouter } from "./routes/staff.js";
+import { commentsRouter } from "./routes/comments.js";
 import { generateTicketNumber } from "./services/ticketNumber.js";
 import { isTicketStatus } from "./services/ticketWorkflow.js";
 
@@ -57,6 +58,11 @@ app.use("/api/auth", authRouter);
 // Lab 3 Issue 3+ — IT Staff endpoints (docs/lab-03/api-spec.md §4)
 // ---------------------------------------------------------------------------
 app.use("/api/staff", staffRouter);
+
+// ---------------------------------------------------------------------------
+// Lab 3 Issue 4 — Public Comments + "appears resolved" (docs/lab-03/api-spec.md §3.6–§3.8)
+// ---------------------------------------------------------------------------
+app.use("/api/tickets", commentsRouter);
 
 // ---------------------------------------------------------------------------
 // Issue 2 — API health check

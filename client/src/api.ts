@@ -372,3 +372,84 @@ export interface Assignee {
 export async function getAssignees(): Promise<Assignee[]> {
   return apiFetch<Assignee[]>("/api/staff/assignees");
 }
+
+// -----------------------------------------------------------------------------
+// Lab 3 Issue 4 — comments, notes, IT Staff Ticket Detail operations (api-spec.md §3.6–§3.8, §4.3–§4.9)
+// -----------------------------------------------------------------------------
+export interface Entry {
+  id: number;
+  ticketId: number;
+  body: string;
+  author: { id: number; name: string; role: Role };
+  createdAt: string;
+}
+
+export async function getComments(ticketNumber: string): Promise<Entry[]> {
+  return apiFetch<Entry[]>(`/api/tickets/${encodeURIComponent(ticketNumber)}/comments`);
+}
+
+export async function postComment(ticketNumber: string, body: string): Promise<Entry> {
+  return apiFetch<Entry>(`/api/tickets/${encodeURIComponent(ticketNumber)}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
+export async function markRequesterResolved(ticketNumber: string): Promise<TicketDetail> {
+  return apiFetch<TicketDetail>(`/api/tickets/${encodeURIComponent(ticketNumber)}/requester-resolved`, { method: "POST" });
+}
+
+export interface StaffTicket {
+  id: number;
+  ticketNumber: string;
+  ticketDate: string;
+  requester: { id: number; name: string; email: string };
+  category: NamedRef;
+  relatedSystem: NamedRef;
+  summary: string;
+  description: string;
+  requestedPriority: Priority;
+  itPriority: Priority;
+  currentStatus: TicketStatus;
+  owner: { id: number; name: string; role: Role } | null;
+  requesterResolvedAt: string | null;
+  allowedTransitions: TicketStatus[];
+  attachments: AttachmentInfo[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+const staffPath = (ticketNumber: string, suffix = "") => `/api/staff/tickets/${encodeURIComponent(ticketNumber)}${suffix}`;
+
+export async function getStaffTicket(ticketNumber: string): Promise<StaffTicket | null> {
+  try {
+    return await apiFetch<StaffTicket>(staffPath(ticketNumber));
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+export async function claimTicket(ticketNumber: string): Promise<StaffTicket> {
+  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/claim"), { method: "POST" });
+}
+
+export async function setTicketOwner(ticketNumber: string, ownerId: number | null): Promise<StaffTicket> {
+  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/owner"), { method: "PATCH", body: JSON.stringify({ ownerId }) });
+}
+
+export async function setItPriority(ticketNumber: string, itPriority: Priority): Promise<StaffTicket> {
+  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/it-priority"), { method: "PATCH", body: JSON.stringify({ itPriority }) });
+}
+
+export async function setTicketStatus(ticketNumber: string, status: TicketStatus): Promise<StaffTicket> {
+  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/status"), { method: "PATCH", body: JSON.stringify({ status }) });
+}
+
+export async function getInternalNotes(ticketNumber: string): Promise<Entry[]> {
+  return apiFetch<Entry[]>(staffPath(ticketNumber, "/internal-notes"));
+}
+
+export async function postInternalNote(ticketNumber: string, body: string): Promise<Entry> {
+  return apiFetch<Entry>(staffPath(ticketNumber, "/internal-notes"), { method: "POST", body: JSON.stringify({ body }) });
+}

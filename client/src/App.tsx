@@ -7,6 +7,7 @@ import MyTickets from "./pages/MyTickets.js";
 import CreateTicket from "./pages/CreateTicket.js";
 import RequesterTicketDetail from "./pages/RequesterTicketDetail.js";
 import StaffTicketQueue from "./pages/StaffTicketQueue.js";
+import StaffTicketDetail from "./pages/StaffTicketDetail.js";
 
 // Lab 3 Issue 2 — the router root. Lab 2's /select route and RequesterProvider are gone; every
 // screen sits behind RequireAuth, which mirrors the server-side guards for navigation only.
@@ -68,6 +69,14 @@ export function AppRoutes() {
         element={
           <RequireAuth roles={["IT_STAFF", "ADMIN"]}>
             <StaffTicketQueue />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/staff/tickets/:ticketNumber"
+        element={
+          <RequireAuth roles={["IT_STAFF", "ADMIN"]}>
+            <StaffTicketDetail />
           </RequireAuth>
         }
       />

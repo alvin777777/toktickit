@@ -38,6 +38,7 @@ describe("RequesterTicketDetail", () => {
   // UI-14 (AC-13) — all header fields read-only, matching the stored ticket.
   it("renders the ticket header fields read-only, matching the stored ticket", async () => {
     vi.spyOn(api, "getTicketDetail").mockResolvedValue(TICKET);
+    vi.spyOn(api, "getComments").mockResolvedValue([]); // Lab 3: the detail page also loads Public Comments
     vi.spyOn(api, "getCategories").mockResolvedValue([{ id: 1, name: "Hardware" }]);
     vi.spyOn(api, "getRelatedSystems").mockResolvedValue([{ id: 1, name: "Corporate Laptop" }]);
     renderDetail();
