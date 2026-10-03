@@ -8,7 +8,9 @@ import path from "node:path";
 import { getPrisma } from "./prisma.js";
 import { asRequester, authenticated } from "./middleware/auth.js";
 import { authRouter } from "./routes/auth.js";
+import { staffRouter } from "./routes/staff.js";
 import { generateTicketNumber } from "./services/ticketNumber.js";
+import { isTicketStatus } from "./services/ticketWorkflow.js";
 
 // docs/lab-02/specification.md BR-16 — fixed attachment rules.
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
@@ -50,6 +52,11 @@ app.use(express.json());
 // Lab 3 Issue 2 — authentication (docs/lab-03/api-spec.md §1)
 // ---------------------------------------------------------------------------
 app.use("/api/auth", authRouter);
+
+// ---------------------------------------------------------------------------
+// Lab 3 Issue 3+ — IT Staff endpoints (docs/lab-03/api-spec.md §4)
+// ---------------------------------------------------------------------------
+app.use("/api/staff", staffRouter);
 
 // ---------------------------------------------------------------------------
 // Issue 2 — API health check
@@ -154,6 +161,7 @@ app.post(
           summary,
           description,
           requestedPriority: requestedPriority as "LOW" | "MEDIUM" | "HIGH",
+          itPriority: requestedPriority as "LOW" | "MEDIUM" | "HIGH", // BR-24 — starts equal
         },
       });
 
@@ -201,7 +209,10 @@ app.post(
         summary: ticket.summary,
         description: ticket.description,
         requestedPriority: ticket.requestedPriority,
+        itPriority: ticket.itPriority,
         currentStatus: ticket.currentStatus,
+        ownerId: ticket.ownerId,
+        requesterResolvedAt: ticket.requesterResolvedAt,
         attachments: savedAttachments.map((a) => ({
           id: a.id,
           originalFilename: a.originalFilename,
@@ -220,7 +231,6 @@ app.post(
 // ---------------------------------------------------------------------------
 const SORTABLE_FIELDS = new Set(["createdAt", "requestedPriority", "currentStatus"]);
 const VALID_PRIORITIES = new Set(["LOW", "MEDIUM", "HIGH"]);
-const VALID_STATUSES = new Set(["NEW"]);
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
 
@@ -261,7 +271,7 @@ app.get("/api/tickets", ...asRequester, async (req: Request, res: Response) => {
   if (VALID_PRIORITIES.has(requestedPriority)) where.requestedPriority = requestedPriority;
 
   const currentStatus = String(req.query.currentStatus ?? "");
-  if (VALID_STATUSES.has(currentStatus)) where.currentStatus = currentStatus;
+  if (isTicketStatus(currentStatus)) where.currentStatus = currentStatus; // BR-33 — every Lab 3 status
 
   try {
     const [items, totalItems] = await Promise.all([
@@ -276,6 +286,7 @@ app.get("/api/tickets", ...asRequester, async (req: Request, res: Response) => {
           summary: true,
           categoryId: true,
           requestedPriority: true,
+          itPriority: true,
           currentStatus: true,
           createdAt: true,
           updatedAt: true,
@@ -326,7 +337,7 @@ app.get("/api/tickets/:ticketNumber", ...asRequester, async (req: Request, res: 
     // BR-22/AC-03 — "doesn't exist" and "not yours" return the identical 404.
     const ticket = await getPrisma().ticket.findFirst({
       where: { ticketNumber: req.params.ticketNumber, requesterId: req.user!.id },
-      include: { attachments: { orderBy: { uploadedAt: "asc" } } },
+      include: { attachments: { orderBy: { uploadedAt: "asc" } }, owner: { select: { id: true, name: true } } },
     });
     if (!ticket) return res.status(404).json({ error: "Ticket not found" });
 
@@ -340,7 +351,10 @@ app.get("/api/tickets/:ticketNumber", ...asRequester, async (req: Request, res: 
       summary: ticket.summary,
       description: ticket.description,
       requestedPriority: ticket.requestedPriority,
+      itPriority: ticket.itPriority,
       currentStatus: ticket.currentStatus,
+      owner: ticket.owner, // { id, name } | null — FR-12
+      requesterResolvedAt: ticket.requesterResolvedAt,
       attachments: ticket.attachments.map(serializeAttachment),
     });
   } catch {

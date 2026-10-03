@@ -54,6 +54,19 @@ describe("client-supplied requester identity is ignored", () => {
   });
 });
 
+// SEC-03 (AC-09, BR-14) — a Requester is refused by every /api/staff/* route before any lookup.
+describe("Requester calling IT Staff routes", () => {
+  it.each([
+    ["GET", "/api/staff/tickets"],
+    ["GET", "/api/staff/assignees"],
+  ])("%s %s → 403 FORBIDDEN with no data", async (method, path) => {
+    const cookie = await asRequester();
+    const res = await request(app)[method.toLowerCase() as "get" | "post" | "patch"](path).set("Cookie", cookie);
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ error: expect.any(String), code: "FORBIDDEN" });
+  });
+});
+
 // SEC-05 (BR-14) — Requester-only operations are refused for staff.
 describe("Requester-only endpoints", () => {
   it("return 403 FORBIDDEN for IT Staff and Administrator", async () => {
@@ -78,6 +91,8 @@ describe("unauthenticated access", () => {
     ["DELETE", "/api/attachments/1"],
     ["GET", "/api/auth/me"],
     ["POST", "/api/auth/change-password"],
+    ["GET", "/api/staff/tickets"],
+    ["GET", "/api/staff/assignees"],
   ])("%s %s → 401 UNAUTHENTICATED", async (method, path) => {
     const res = await request(app)[method.toLowerCase() as "get" | "post" | "delete"](path);
     expect(res.status).toBe(401);
