@@ -1,22 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
 import MyTickets from "../../src/pages/MyTickets.js";
-import { RequesterProvider, REQUESTER_STORAGE_KEY } from "../../src/context/RequesterContext.js";
+import { renderWithAuth } from "../helpers/auth.js";
 import * as api from "../../src/api.js";
 
-const REQUESTER = { id: 1, name: "Jennifer Anderson", email: "jennifer@toktickit.dev" };
-
+// Lab 3: rendered as the authenticated seeded Requester (AuthProvider) instead of a selected one.
 function renderMyTickets() {
-  localStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(REQUESTER));
-  return render(
-    <MemoryRouter>
-      <RequesterProvider>
-        <MyTickets />
-      </RequesterProvider>
-    </MemoryRouter>
-  );
+  return renderWithAuth(<MyTickets />);
 }
 
 function ticket(overrides: Partial<api.TicketListItem> = {}): api.TicketListItem {
@@ -35,7 +26,6 @@ function ticket(overrides: Partial<api.TicketListItem> = {}): api.TicketListItem
 
 describe("MyTickets", () => {
   beforeEach(() => {
-    localStorage.clear();
     vi.spyOn(api, "getCategories").mockResolvedValue([{ id: 1, name: "Hardware" }]);
   });
 
@@ -57,10 +47,13 @@ describe("MyTickets", () => {
 
   // UI-11 (AC-10, BR-21) — no-results state when filters exclude everything.
   it("shows the no-results state when filters match nothing", async () => {
+    // Typing fires one load() per keystroke; only the first response may be the populated list,
+    // every later one (not just the second) must be the empty result — otherwise the spy falls back
+    // to the real fetch for the remaining keystrokes and the screen lands in the failure state.
     const spy = vi
       .spyOn(api, "getMyTickets")
       .mockResolvedValueOnce({ items: [ticket()], page: 1, pageSize: 10, totalItems: 1, totalPages: 1 })
-      .mockResolvedValueOnce({ items: [], page: 1, pageSize: 10, totalItems: 0, totalPages: 1 });
+      .mockResolvedValue({ items: [], page: 1, pageSize: 10, totalItems: 0, totalPages: 1 });
     const user = userEvent.setup();
     renderMyTickets();
 
@@ -70,7 +63,7 @@ describe("MyTickets", () => {
     await waitFor(() => {
       expect(screen.getByText(/no tickets match your filters/i)).toBeInTheDocument();
     });
-    expect(spy).toHaveBeenLastCalledWith(1, expect.objectContaining({ search: "nonexistent-xyz" }));
+    expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ search: "nonexistent-xyz" }));
   });
 
   // UI-12 (AC-11) — search narrows the list to matching tickets.
@@ -85,7 +78,7 @@ describe("MyTickets", () => {
     await user.type(screen.getByLabelText(/search tickets/i), "battery");
 
     await waitFor(() => {
-      expect(spy).toHaveBeenLastCalledWith(1, expect.objectContaining({ search: "battery" }));
+      expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ search: "battery" }));
     });
   });
 
@@ -105,7 +98,7 @@ describe("MyTickets", () => {
     await user.click(screen.getByRole("button", { name: /next/i }));
 
     await waitFor(() => {
-      expect(spy).toHaveBeenLastCalledWith(1, expect.objectContaining({ page: 2 }));
+      expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }));
     });
   });
 
@@ -129,7 +122,7 @@ describe("MyTickets", () => {
     await user.click(screen.getByRole("button", { name: /next/i }));
 
     expect(await screen.findByText(/showing 11 to 15 of 15 tickets/i)).toBeInTheDocument();
-    expect(spy).toHaveBeenLastCalledWith(1, expect.objectContaining({ page: 2 }));
+    expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }));
   });
 
   // Requested by review on PR #26 — a slower earlier request resolving after a faster later one

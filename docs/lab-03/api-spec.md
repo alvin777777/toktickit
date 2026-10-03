@@ -77,11 +77,11 @@ Body: `{ "currentPassword": "…", "newPassword": "…", "confirmPassword": "…
 
 ---
 
-## 2. Lookups (any authenticated role)
+## 2. Lookups (public reference data, unchanged from Lab 1/2)
 
 ### 2.1 GET /api/categories → `[{ "id": 1, "name": "Hardware" }, …]`
 ### 2.2 GET /api/related-systems → `[{ "id": 1, "name": "Email" }, …]` (active only)
-Both: **401** if unauthenticated. (`GET /api/requesters` from Lab 2 is removed → 404.)
+No session required (non-sensitive reference data). `GET /api/requesters` from Lab 2 is removed → 404.
 
 ---
 
