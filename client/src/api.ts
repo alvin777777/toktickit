@@ -1,5 +1,45 @@
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
+// -----------------------------------------------------------------------------
+// Lab 3 — every call carries the session cookie (docs/lab-03/api-spec.md §0). The old
+// X-Requester-Id header and requesterId parameters are gone (BR-13).
+// -----------------------------------------------------------------------------
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  fields: Record<string, string>;
+  allowed?: string[];
+  constructor(status: number, body: { error?: string; code?: string; fields?: Record<string, string>; allowed?: string[] } | null) {
+    super(body?.error ?? "Request failed");
+    this.status = status;
+    this.code = body?.code;
+    this.fields = body?.fields ?? {};
+    this.allowed = body?.allowed;
+  }
+}
+
+async function readBody(res: Response) {
+  const type = res.headers.get("content-type") ?? "";
+  if (!type.includes("application/json")) return null;
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  const res = await fetch(`${API_URL}${path}`, { ...init, headers, credentials: "include" });
+  if (res.status === 204) return undefined as T;
+  const body = await readBody(res);
+  if (!res.ok) throw new ApiError(res.status, body);
+  return body as T;
+}
+
 export interface Category {
   id: number;
   name: string;
@@ -10,8 +50,7 @@ export interface SystemStatus {
   categories: Category[];
 }
 
-// Issue 2 + Issue 4 — verify the backend is up, then load the categories.
-// Throwing on failure lets the UI show a single Offline/error state.
+// Issue 2 + Issue 4 (Lab 1) — verify the backend is up, then load the categories.
 export async function checkSystem(): Promise<SystemStatus> {
   const healthRes = await fetch(`${API_URL}/api/health`);
   if (!healthRes.ok) throw new Error("Unable to connect to TokTickIT API");
@@ -24,19 +63,51 @@ export async function checkSystem(): Promise<SystemStatus> {
 }
 
 // -----------------------------------------------------------------------------
-// Lab 2 Issue 2 — Development Requester context (docs/lab-02/api-spec.md §1).
-// This is a testing mechanism, not authentication (BR-03/BR-09).
+// Lab 3 Issue 2 — authentication (api-spec.md §1)
 // -----------------------------------------------------------------------------
-export interface Requester {
+export type Role = "REQUESTER" | "IT_STAFF" | "ADMIN";
+
+export interface AuthUser {
   id: number;
   name: string;
   email: string;
+  role: Role;
+  mustChangePassword: boolean;
 }
 
-export async function getActiveRequesters(): Promise<Requester[]> {
-  const res = await fetch(`${API_URL}/api/requesters`);
-  if (!res.ok) throw new Error("Unable to load development requesters");
-  return res.json();
+export async function login(email: string, password: string): Promise<AuthUser> {
+  const body = await apiFetch<{ user: AuthUser }>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+  return body.user;
+}
+
+export async function logout(): Promise<void> {
+  await apiFetch<void>("/api/auth/logout", { method: "POST" });
+}
+
+// Returns null (instead of throwing) when there is no session, so the app can boot quietly.
+export async function getCurrentUser(): Promise<AuthUser | null> {
+  try {
+    const body = await apiFetch<{ user: AuthUser }>("/api/auth/me");
+    return body.user;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) return null;
+    throw err;
+  }
+}
+
+export async function changePassword(input: {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}): Promise<AuthUser> {
+  const body = await apiFetch<{ user: AuthUser }>("/api/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return body.user;
 }
 
 // -----------------------------------------------------------------------------
@@ -48,23 +119,30 @@ export interface RelatedSystem {
 }
 
 export async function getCategories(): Promise<Category[]> {
-  const res = await fetch(`${API_URL}/api/categories`);
-  if (!res.ok) throw new Error("Unable to load categories");
-  return res.json();
+  return apiFetch<Category[]>("/api/categories");
 }
 
 export async function getRelatedSystems(): Promise<RelatedSystem[]> {
-  const res = await fetch(`${API_URL}/api/related-systems`);
-  if (!res.ok) throw new Error("Unable to load related systems");
-  return res.json();
+  return apiFetch<RelatedSystem[]>("/api/related-systems");
 }
+
+export type Priority = "LOW" | "MEDIUM" | "HIGH";
+export type TicketStatus =
+  | "NEW"
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "WAITING_FOR_REQUESTER"
+  | "RESOLVED"
+  | "CLOSED"
+  | "REOPENED"
+  | "CANCELLED";
 
 export interface CreateTicketInput {
   categoryId: number;
   relatedSystemId: number;
   summary: string;
   description: string;
-  requestedPriority: "LOW" | "MEDIUM" | "HIGH";
+  requestedPriority: Priority;
   attachments: File[];
 }
 
@@ -89,7 +167,7 @@ export class TicketValidationError extends Error {
   }
 }
 
-export async function createTicket(requesterId: number, input: CreateTicketInput): Promise<CreatedTicket> {
+export async function createTicket(input: CreateTicketInput): Promise<CreatedTicket> {
   const form = new FormData();
   form.set("categoryId", String(input.categoryId));
   form.set("relatedSystemId", String(input.relatedSystemId));
@@ -98,18 +176,12 @@ export async function createTicket(requesterId: number, input: CreateTicketInput
   form.set("requestedPriority", input.requestedPriority);
   for (const file of input.attachments) form.append("attachments", file);
 
-  const res = await fetch(`${API_URL}/api/tickets`, {
-    method: "POST",
-    headers: { "X-Requester-Id": String(requesterId) },
-    body: form,
-  });
-
-  if (res.status === 400) {
-    const body = await res.json();
-    throw new TicketValidationError(body.fields ?? {});
+  try {
+    return await apiFetch<CreatedTicket>("/api/tickets", { method: "POST", body: form });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 400) throw new TicketValidationError(err.fields);
+    throw err;
   }
-  if (!res.ok) throw new Error("Unable to create ticket");
-  return res.json();
 }
 
 // -----------------------------------------------------------------------------
@@ -120,8 +192,8 @@ export interface TicketListItem {
   ticketNumber: string;
   summary: string;
   categoryId: number;
-  requestedPriority: "LOW" | "MEDIUM" | "HIGH";
-  currentStatus: "NEW";
+  requestedPriority: Priority;
+  currentStatus: TicketStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -145,16 +217,16 @@ export interface TicketListQuery {
   pageSize?: number;
 }
 
-export async function getMyTickets(requesterId: number, query: TicketListQuery): Promise<TicketListResult> {
+export function toQueryString(query: Record<string, unknown>): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined && value !== "") params.set(key, String(value));
+    if (value !== undefined && value !== "" && value !== null) params.set(key, String(value));
   }
-  const res = await fetch(`${API_URL}/api/tickets?${params.toString()}`, {
-    headers: { "X-Requester-Id": String(requesterId) },
-  });
-  if (!res.ok) throw new Error("Unable to load tickets");
-  return res.json();
+  return params.toString();
+}
+
+export async function getMyTickets(query: TicketListQuery): Promise<TicketListResult> {
+  return apiFetch<TicketListResult>(`/api/tickets?${toQueryString(query as Record<string, unknown>)}`);
 }
 
 // -----------------------------------------------------------------------------
@@ -180,18 +252,18 @@ export interface TicketDetail {
   relatedSystemId: number;
   summary: string;
   description: string;
-  requestedPriority: "LOW" | "MEDIUM" | "HIGH";
-  currentStatus: "NEW";
+  requestedPriority: Priority;
+  currentStatus: TicketStatus;
   attachments: AttachmentInfo[];
 }
 
-export async function getTicketDetail(requesterId: number, ticketNumber: string): Promise<TicketDetail | null> {
-  const res = await fetch(`${API_URL}/api/tickets/${encodeURIComponent(ticketNumber)}`, {
-    headers: { "X-Requester-Id": String(requesterId) },
-  });
-  if (res.status === 404) return null; // BR-22 — not found and not-owned look identical
-  if (!res.ok) throw new Error("Unable to load ticket");
-  return res.json();
+export async function getTicketDetail(ticketNumber: string): Promise<TicketDetail | null> {
+  try {
+    return await apiFetch<TicketDetail>(`/api/tickets/${encodeURIComponent(ticketNumber)}`);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null; // BR-22 — not found and not-owned look identical
+    throw err;
+  }
 }
 
 // Thrown on 400 (attachment validation) so the UI can show what went wrong.
@@ -203,42 +275,31 @@ export class AttachmentValidationError extends Error {
   }
 }
 
-export async function addAttachment(requesterId: number, ticketNumber: string, file: File): Promise<AttachmentInfo> {
+export async function addAttachment(ticketNumber: string, file: File): Promise<AttachmentInfo> {
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch(`${API_URL}/api/tickets/${encodeURIComponent(ticketNumber)}/attachments`, {
-    method: "POST",
-    headers: { "X-Requester-Id": String(requesterId) },
-    body: form,
-  });
-  if (res.status === 400) {
-    const body = await res.json();
-    throw new AttachmentValidationError(body.fields ?? {});
+  try {
+    return await apiFetch<AttachmentInfo>(`/api/tickets/${encodeURIComponent(ticketNumber)}/attachments`, {
+      method: "POST",
+      body: form,
+    });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 400) throw new AttachmentValidationError(err.fields);
+    throw err;
   }
-  if (!res.ok) throw new Error("Unable to add attachment");
-  return res.json();
 }
 
-export async function removeAttachment(
-  requesterId: number,
-  attachmentId: number,
-  reason: string
-): Promise<AttachmentInfo> {
-  const res = await fetch(`${API_URL}/api/attachments/${attachmentId}`, {
+export async function removeAttachment(attachmentId: number, reason: string): Promise<AttachmentInfo> {
+  return apiFetch<AttachmentInfo>(`/api/attachments/${attachmentId}`, {
     method: "DELETE",
-    headers: { "X-Requester-Id": String(requesterId), "Content-Type": "application/json" },
     body: JSON.stringify({ reason }),
   });
-  if (!res.ok) throw new Error("Unable to remove attachment");
-  return res.json();
 }
 
-// Downloads happen via header-authenticated fetch (a plain <a href> can't set X-Requester-Id),
-// then hands the browser a blob URL to save — same end result as a normal file download link.
-export async function downloadAttachment(requesterId: number, attachment: AttachmentInfo): Promise<void> {
-  const res = await fetch(`${API_URL}/api/attachments/${attachment.id}/download`, {
-    headers: { "X-Requester-Id": String(requesterId) },
-  });
+// Downloads happen via a credentialed fetch, then hand the browser a blob URL to save — same end
+// result as a normal file download link, but the session cookie decides who may fetch it.
+export async function downloadAttachment(attachment: AttachmentInfo): Promise<void> {
+  const res = await fetch(`${API_URL}/api/attachments/${attachment.id}/download`, { credentials: "include" });
   if (!res.ok) throw new Error("Unable to download attachment");
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);

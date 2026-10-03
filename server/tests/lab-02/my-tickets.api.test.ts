@@ -2,16 +2,18 @@ import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
 import { app } from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
+import { asRequester, asRequesterB } from "../helpers/auth.js";
 
-let requesterA: number;
-let requesterB: number;
+// Lab 3: the Requester identity now comes from the session cookie (BR-13), not a header.
+let requesterA: string;
+let requesterB: string;
 let categoryId: number;
 let relatedSystemId: number;
 
-async function createTicket(requesterId: number, summary: string, priority = "MEDIUM") {
+async function createTicket(cookie: string, summary: string, priority = "MEDIUM") {
   const res = await request(app)
     .post("/api/tickets")
-    .set("X-Requester-Id", String(requesterId))
+    .set("Cookie", cookie)
     .field("categoryId", String(categoryId))
     .field("relatedSystemId", String(relatedSystemId))
     .field("summary", summary)
@@ -22,13 +24,8 @@ async function createTicket(requesterId: number, summary: string, priority = "ME
 
 beforeAll(async () => {
   const prisma = getPrisma();
-  const [reqA, reqB] = await prisma.requesterUser.findMany({
-    where: { isActive: true },
-    orderBy: { id: "asc" },
-    take: 2,
-  });
-  requesterA = reqA.id;
-  requesterB = reqB.id;
+  requesterA = await asRequester();
+  requesterB = await asRequesterB();
   const category = await prisma.category.findFirstOrThrow();
   const relatedSystem = await prisma.relatedSystem.findFirstOrThrow({ where: { isActive: true } });
   categoryId = category.id;
@@ -40,7 +37,7 @@ describe("GET /api/tickets", () => {
     await createTicket(requesterA, "My Tickets isolation test A");
     await createTicket(requesterB, "My Tickets isolation test B");
 
-    const resA = await request(app).get("/api/tickets").set("X-Requester-Id", String(requesterA));
+    const resA = await request(app).get("/api/tickets").set("Cookie", requesterA);
     expect(resA.status).toBe(200);
     const summariesA: string[] = resA.body.items.map((t: { summary: string }) => t.summary);
     expect(summariesA).toContain("My Tickets isolation test A");
@@ -56,7 +53,7 @@ describe("GET /api/tickets", () => {
     const res = await request(app)
       .get("/api/tickets")
       .query({ search: unique, page: 1, pageSize: 1 })
-      .set("X-Requester-Id", String(requesterA));
+      .set("Cookie", requesterA);
 
     expect(res.status).toBe(200);
     expect(res.body.items).toHaveLength(1); // pageSize=1
@@ -71,7 +68,7 @@ describe("GET /api/tickets", () => {
     const res = await request(app)
       .get("/api/tickets")
       .query({ page: "not-a-number", pageSize: "-5" })
-      .set("X-Requester-Id", String(requesterA));
+      .set("Cookie", requesterA);
 
     expect(res.status).toBe(200);
     expect(res.body.page).toBe(1);
@@ -83,15 +80,15 @@ describe("GET /api/tickets", () => {
     const res = await request(app)
       .get("/api/tickets")
       .query({ page: "2abc", pageSize: "10px" })
-      .set("X-Requester-Id", String(requesterA));
+      .set("Cookie", requesterA);
 
     expect(res.status).toBe(200);
     expect(res.body.page).toBe(1);
     expect(res.body.pageSize).toBe(10);
   });
 
-  it("requires a valid X-Requester-Id (401)", async () => {
-    const res = await request(app).get("/api/tickets");
+  it("requires an authenticated session (401) and ignores a stray X-Requester-Id (BR-13)", async () => {
+    const res = await request(app).get("/api/tickets").set("X-Requester-Id", "1");
     expect(res.status).toBe(401);
   });
 });

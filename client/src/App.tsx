@@ -1,47 +1,69 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { RequesterProvider } from "./context/RequesterContext.js";
-import RequireRequester from "./components/RequireRequester.js";
-import RequesterSelect from "./pages/RequesterSelect.js";
+import { AuthProvider, roleHome, useAuth } from "./context/AuthContext.js";
+import RequireAuth from "./components/RequireAuth.js";
+import Login from "./pages/Login.js";
+import ChangePassword from "./pages/ChangePassword.js";
 import MyTickets from "./pages/MyTickets.js";
 import CreateTicket from "./pages/CreateTicket.js";
 import RequesterTicketDetail from "./pages/RequesterTicketDetail.js";
 
-// Lab 2 Issue 2 — App.tsx becomes the router root. The Lab 1 health-check demo now lives in
-// components/SystemStatusCard.tsx (see docs/lab-02/specification.md §11).
+// Lab 3 Issue 2 — the router root. Lab 2's /select route and RequesterProvider are gone; every
+// screen sits behind RequireAuth, which mirrors the server-side guards for navigation only.
+function HomeRedirect() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  return <Navigate to={user.mustChangePassword ? "/change-password" : roleHome(user.role)} replace />;
+}
+
 export default function App() {
   return (
-    <RequesterProvider>
+    <AuthProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/select" element={<RequesterSelect />} />
-          <Route
-            path="/tickets"
-            element={
-              <RequireRequester>
-                <MyTickets />
-              </RequireRequester>
-            }
-          />
-          <Route
-            path="/tickets/new"
-            element={
-              <RequireRequester>
-                <CreateTicket />
-              </RequireRequester>
-            }
-          />
-          <Route
-            path="/tickets/:ticketNumber"
-            element={
-              <RequireRequester>
-                <RequesterTicketDetail />
-              </RequireRequester>
-            }
-          />
-          <Route path="/" element={<Navigate to="/tickets" replace />} />
-          <Route path="*" element={<Navigate to="/tickets" replace />} />
-        </Routes>
+        <AppRoutes />
       </BrowserRouter>
-    </RequesterProvider>
+    </AuthProvider>
+  );
+}
+
+export function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route
+        path="/change-password"
+        element={
+          <RequireAuth>
+            <ChangePassword />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/tickets"
+        element={
+          <RequireAuth roles={["REQUESTER"]}>
+            <MyTickets />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/tickets/new"
+        element={
+          <RequireAuth roles={["REQUESTER"]}>
+            <CreateTicket />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/tickets/:ticketNumber"
+        element={
+          <RequireAuth roles={["REQUESTER"]}>
+            <RequesterTicketDetail />
+          </RequireAuth>
+        }
+      />
+      <Route path="/" element={<HomeRedirect />} />
+      <Route path="*" element={<HomeRedirect />} />
+    </Routes>
   );
 }

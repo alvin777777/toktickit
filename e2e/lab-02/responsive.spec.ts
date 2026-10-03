@@ -33,10 +33,14 @@ async function assertFieldRowLayout(page: Page, labels: string[], projectName: s
   }
 }
 
+// Lab 3: the Development Requester selector is gone — sign in as the seeded Requester instead
+// (credentials from server/prisma/seed.ts, local development only).
 async function selectRequester(page: Page) {
-  await page.goto("/select");
-  await page.getByLabel(/Development Requester/i).selectOption({ label: "Jennifer Anderson" });
-  await page.getByRole("button", { name: /continue/i }).click();
+  await page.goto("/login");
+  await page.getByLabel(/email address/i).fill("jennifer.anderson@toktickit.dev");
+  await page.getByLabel(/^password/i).fill("Password123!");
+  await page.getByRole("button", { name: /sign in/i }).click();
+  await expect(page).toHaveURL(/\/tickets$/);
 }
 
 test.describe("Responsive / visual QA", () => {

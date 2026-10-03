@@ -9,21 +9,16 @@ import {
   getRelatedSystems,
   getTicketDetail,
 } from "../api.js";
-import { useRequester } from "../context/RequesterContext.js";
+import { useAuth } from "../context/AuthContext.js";
+import { PRIORITY_BADGE, StatusBadge } from "../components/badges.js";
 import AttachmentSection from "../components/AttachmentSection.js";
 
 type LoadState = "loading" | "success" | "notFound" | "error";
 
-const PRIORITY_BADGE: Record<string, string> = {
-  LOW: "bg-secondary",
-  MEDIUM: "bg-warning text-dark",
-  HIGH: "bg-danger",
-};
-
 // ui-spec.md §5.5 — Requester Ticket Detail (View Mode).
 export default function RequesterTicketDetail() {
   const { ticketNumber } = useParams<{ ticketNumber: string }>();
-  const { requester } = useRequester();
+  const { user } = useAuth();
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -41,16 +36,16 @@ export default function RequesterTicketDetail() {
   }, []);
 
   useEffect(() => {
-    if (!requester || !ticketNumber) return;
+    if (!ticketNumber) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requester, ticketNumber]);
+  }, [ticketNumber]);
 
   async function load() {
-    if (!requester || !ticketNumber) return;
+    if (!ticketNumber) return;
     setLoadState("loading");
     try {
-      const result = await getTicketDetail(requester.id, ticketNumber);
+      const result = await getTicketDetail(ticketNumber);
       if (!result) {
         setLoadState("notFound"); // BR-22 — identical outcome whether it doesn't exist or isn't owned
         return;
@@ -145,7 +140,7 @@ export default function RequesterTicketDetail() {
             className="form-control"
             style={readonlyField}
             readOnly
-            value={requester?.name ?? ""}
+            value={user?.name ?? ""}
           />
         </div>
         <div className="col-md-6 col-lg-4">
@@ -181,7 +176,7 @@ export default function RequesterTicketDetail() {
         <div className="col-md-6 col-lg-4">
           <label className="form-label fw-semibold small">Current Status</label>
           <div>
-            <span className="badge bg-info text-dark">{ticket.currentStatus}</span>
+            <StatusBadge status={ticket.currentStatus} />
           </div>
         </div>
       </div>
@@ -214,7 +209,6 @@ export default function RequesterTicketDetail() {
       </div>
 
       <AttachmentSection
-        requesterId={requester!.id}
         ticketNumber={ticket.ticketNumber}
         attachments={ticket.attachments}
         onChange={handleAttachmentsChange}

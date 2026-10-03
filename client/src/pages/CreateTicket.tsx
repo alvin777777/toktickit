@@ -9,7 +9,6 @@ import {
   getCategories,
   getRelatedSystems,
 } from "../api.js";
-import { useRequester } from "../context/RequesterContext.js";
 
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -24,8 +23,6 @@ interface PendingAttachment {
 
 // ui-spec.md §5.3 — Create Ticket screen.
 export default function CreateTicket() {
-  const { requester } = useRequester();
-
   const [categories, setCategories] = useState<Category[]>([]);
   const [relatedSystems, setRelatedSystems] = useState<RelatedSystem[]>([]);
   const [refDataError, setRefDataError] = useState(false);
@@ -122,11 +119,9 @@ export default function CreateTicket() {
     }
     setFieldErrors({});
 
-    if (!requester) return; // route guard should prevent this, but keep the compiler happy
-
     setStage("submitting");
     try {
-      const result = await createTicket(requester.id, {
+      const result = await createTicket({
         categoryId: Number(categoryId),
         relatedSystemId: Number(relatedSystemId),
         summary,

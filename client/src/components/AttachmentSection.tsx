@@ -6,14 +6,13 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_ATTACHMENTS = 5;
 
 interface Props {
-  requesterId: number;
   ticketNumber: string;
   attachments: AttachmentInfo[];
   onChange: (attachments: AttachmentInfo[]) => void;
 }
 
 // ui-spec.md §5.5 — Attachments section of Requester Ticket Detail.
-export default function AttachmentSection({ requesterId, ticketNumber, attachments, onChange }: Props) {
+export default function AttachmentSection({ ticketNumber, attachments, onChange }: Props) {
   const [pickError, setPickError] = useState("");
   const [uploading, setUploading] = useState(false);
   const [removingId, setRemovingId] = useState<number | null>(null);
@@ -45,7 +44,7 @@ export default function AttachmentSection({ requesterId, ticketNumber, attachmen
 
     setUploading(true);
     try {
-      const added = await addAttachment(requesterId, ticketNumber, file);
+      const added = await addAttachment(ticketNumber, file);
       onChange([...attachments, added]);
     } catch {
       setActionError("Unable to add attachment right now. Please try again.");
@@ -66,7 +65,7 @@ export default function AttachmentSection({ requesterId, ticketNumber, attachmen
       return;
     }
     try {
-      const updated = await removeAttachment(requesterId, id, removalReason.trim());
+      const updated = await removeAttachment(id, removalReason.trim());
       onChange(attachments.map((a) => (a.id === id ? updated : a)));
       setRemovingId(null);
     } catch {
@@ -77,7 +76,7 @@ export default function AttachmentSection({ requesterId, ticketNumber, attachmen
   async function handleDownload(attachment: AttachmentInfo) {
     setActionError("");
     try {
-      await downloadAttachment(requesterId, attachment);
+      await downloadAttachment(attachment);
     } catch {
       setActionError("Unable to download attachment right now. Please try again.");
     }

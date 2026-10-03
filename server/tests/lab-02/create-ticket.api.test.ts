@@ -2,17 +2,17 @@ import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
 import { app } from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
+import { asRequester } from "../helpers/auth.js";
 
-let requesterId: number;
+let cookie: string; // Lab 3: session cookie instead of X-Requester-Id (BR-13)
 let categoryId: number;
 let relatedSystemId: number;
 
 beforeAll(async () => {
   const prisma = getPrisma();
-  const requester = await prisma.requesterUser.findFirstOrThrow({ where: { isActive: true } });
+  cookie = await asRequester();
   const category = await prisma.category.findFirstOrThrow();
   const relatedSystem = await prisma.relatedSystem.findFirstOrThrow({ where: { isActive: true } });
-  requesterId = requester.id;
   categoryId = category.id;
   relatedSystemId = relatedSystem.id;
 });
@@ -21,7 +21,7 @@ describe("POST /api/tickets", () => {
   it("creates a ticket with valid data (AC-01)", async () => {
     const res = await request(app)
       .post("/api/tickets")
-      .set("X-Requester-Id", String(requesterId))
+      .set("Cookie", cookie)
       .field("categoryId", String(categoryId))
       .field("relatedSystemId", String(relatedSystemId))
       .field("summary", "Laptop battery drains quickly")
@@ -37,7 +37,7 @@ describe("POST /api/tickets", () => {
   it("rejects missing summary (AC-04)", async () => {
     const res = await request(app)
       .post("/api/tickets")
-      .set("X-Requester-Id", String(requesterId))
+      .set("Cookie", cookie)
       .field("categoryId", String(categoryId))
       .field("relatedSystemId", String(relatedSystemId))
       .field("description", "Valid description that is long enough to pass.")
@@ -50,7 +50,7 @@ describe("POST /api/tickets", () => {
   it("rejects missing description (AC-05)", async () => {
     const res = await request(app)
       .post("/api/tickets")
-      .set("X-Requester-Id", String(requesterId))
+      .set("Cookie", cookie)
       .field("categoryId", String(categoryId))
       .field("relatedSystemId", String(relatedSystemId))
       .field("summary", "Valid summary here")
@@ -66,7 +66,7 @@ describe("POST /api/tickets", () => {
 
     const res = await request(app)
       .post("/api/tickets")
-      .set("X-Requester-Id", String(requesterId))
+      .set("Cookie", cookie)
       .field("categoryId", String(categoryId))
       .field("relatedSystemId", String(relatedSystemId))
       .field("summary", "Mixed attachment test ticket")
@@ -87,7 +87,7 @@ describe("POST /api/tickets", () => {
     const tinyFile = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
     let req = request(app)
       .post("/api/tickets")
-      .set("X-Requester-Id", String(requesterId))
+      .set("Cookie", cookie)
       .field("categoryId", String(categoryId))
       .field("relatedSystemId", String(relatedSystemId))
       .field("summary", "Too many attachments")
