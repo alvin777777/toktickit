@@ -64,6 +64,10 @@ describe("Requester calling IT Staff routes", () => {
     ["PATCH", "/api/staff/tickets/TKT-2026-000001/status"],
     ["GET", "/api/staff/tickets/TKT-2026-000001/internal-notes"],
     ["POST", "/api/staff/tickets/TKT-2026-000001/internal-notes"],
+    ["GET", "/api/admin/users"],
+    ["POST", "/api/admin/users"],
+    ["PATCH", "/api/admin/users/1"],
+    ["POST", "/api/admin/users/1/initial-password"],
   ])("%s %s → 403 FORBIDDEN with no data", async (method, path) => {
     const cookie = await asRequester();
     const res = await api()[method.toLowerCase() as "get" | "post" | "patch"](path).set("Cookie", cookie);
@@ -124,6 +128,8 @@ describe("unauthenticated access", () => {
     ["GET", "/api/staff/tickets/TKT-2026-000001/internal-notes"],
     ["GET", "/api/tickets/TKT-2026-000001/comments"],
     ["POST", "/api/tickets/TKT-2026-000001/requester-resolved"],
+    ["GET", "/api/admin/users"],
+    ["PATCH", "/api/admin/users/1"],
   ])("%s %s → 401 UNAUTHENTICATED", async (method, path) => {
     const res = await api()[method.toLowerCase() as "get" | "post" | "delete" | "patch"](path);
     expect(res.status).toBe(401);
@@ -141,9 +147,8 @@ describe("deactivation revokes sessions", () => {
     const cookie = await loginAs(email);
     expect((await api().get("/api/auth/me").set("Cookie", cookie)).status).toBe(200);
 
-    // Until the Administrator API lands (Issue 5) this is the direct DB effect the API will have.
-    await getPrisma().user.update({ where: { id: user.id }, data: { isActive: false } });
-    await getPrisma().session.deleteMany({ where: { userId: user.id } });
+    const deactivate = await request(app).patch(`/api/admin/users/${user.id}`).set("Cookie", await asAdmin()).send({ isActive: false });
+    expect(deactivate.status).toBe(200);
 
     const after = await api().get("/api/auth/me").set("Cookie", cookie);
     expect(after.status).toBe(401);
