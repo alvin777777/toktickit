@@ -3,7 +3,6 @@ import { Prisma, type UserRole } from "@prisma/client";
 import { getPrisma } from "../prisma.js";
 import { asAdmin } from "../middleware/auth.js";
 import { hashPassword, passwordRuleFailure } from "../services/password.js";
-import { deleteAllSessionsForUser } from "../services/session.js";
 import { normalizeEmail } from "./auth.js";
 
 // Lab 3 Issue 5 — minimalist Administrator user management (docs/lab-03/api-spec.md §5).
@@ -63,6 +62,13 @@ function emailTaken(res: Response) {
 
 function isUniqueViolation(err: unknown) {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+}
+
+// Thrown inside a transaction to roll it back and answer with a documented conflict.
+class Conflict extends Error {
+  constructor(public status: number, public code: string, message: string, public fields?: Record<string, string>) {
+    super(message);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -132,29 +138,35 @@ adminRouter.patch("/users/:id", async (req: Request, res: Response) => {
 
   try {
     const prisma = getPrisma();
-    const target = await prisma.user.findUnique({ where: { id } });
-    if (!target) return res.status(404).json({ error: "User not found" });
+    // BR-42/BR-43/BR-10 + AC-35/AC-36 — the safety checks, the update, and the session revocation
+    // are one transaction. The active-Administrator rows are locked (SELECT … FOR UPDATE) before the
+    // LAST_ADMIN decision, so two concurrent demotions serialize and the second one sees the first
+    // (review on PR #43).
+    const user = await prisma.$transaction(async (tx) => {
+      const target = await tx.user.findUnique({ where: { id } });
+      if (!target) throw new Conflict(404, "NOT_FOUND", "User not found");
 
-    if (data.email && data.email !== target.email) {
-      const clash = await prisma.user.findUnique({ where: { email: data.email } });
-      if (clash) return emailTaken(res);
-    }
-    const deactivating = data.isActive === false && target.isActive;
-    if (deactivating && target.id === req.user!.id) {
-      return res.status(409).json({ error: "You cannot deactivate your own account.", code: "SELF_DEACTIVATION" });
-    }
-    const losesAdmin = target.role === "ADMIN" && target.isActive && (deactivating || (data.role && data.role !== "ADMIN"));
-    if (losesAdmin) {
-      const activeAdmins = await prisma.user.count({ where: { role: "ADMIN", isActive: true } });
-      if (activeAdmins <= 1) {
-        return res.status(409).json({ error: "At least one active Administrator is required.", code: "LAST_ADMIN" });
+      if (data.email && data.email !== target.email) {
+        const clash = await tx.user.findUnique({ where: { email: data.email } });
+        if (clash) throw new Conflict(409, "EMAIL_TAKEN", "A user with this email already exists.", { email: "A user with this email already exists." });
       }
-    }
+      const deactivating = data.isActive === false && target.isActive;
+      if (deactivating && target.id === req.user!.id) {
+        throw new Conflict(409, "SELF_DEACTIVATION", "You cannot deactivate your own account.");
+      }
+      const losesAdmin = target.role === "ADMIN" && target.isActive && (deactivating || (data.role && data.role !== "ADMIN"));
+      if (losesAdmin) {
+        const locked = await tx.$queryRaw<{ id: number }[]>`SELECT id FROM "User" WHERE role = 'ADMIN' AND "isActive" = true FOR UPDATE`;
+        if (locked.length <= 1) throw new Conflict(409, "LAST_ADMIN", "At least one active Administrator is required.");
+      }
 
-    const user = await prisma.user.update({ where: { id }, data, select: adminUserSelect });
-    if (deactivating) await deleteAllSessionsForUser(id); // BR-10
+      const updated = await tx.user.update({ where: { id }, data, select: adminUserSelect });
+      if (deactivating) await tx.session.deleteMany({ where: { userId: id } }); // BR-10, same transaction
+      return updated;
+    });
     res.status(200).json(user);
   } catch (err) {
+    if (err instanceof Conflict) return res.status(err.status).json({ error: err.message, code: err.code, ...(err.fields ? { fields: err.fields } : {}) });
     if (isUniqueViolation(err)) return emailTaken(res);
     res.status(500).json({ error: "Unable to update user" });
   }
@@ -173,12 +185,12 @@ adminRouter.post("/users/:id/initial-password", async (req: Request, res: Respon
   try {
     const prisma = getPrisma();
     if (!(await prisma.user.findUnique({ where: { id } }))) return res.status(404).json({ error: "User not found" });
-    const user = await prisma.user.update({
-      where: { id },
-      data: { passwordHash: await hashPassword(initialPassword), mustChangePassword: true },
-      select: adminUserSelect,
-    });
-    await deleteAllSessionsForUser(id); // the user must sign in again with the new initial password
+    // BR-44 / AC-36 — new credential and session revocation are one transaction (review on PR #43).
+    const newHash = await hashPassword(initialPassword);
+    const [user] = await prisma.$transaction([
+      prisma.user.update({ where: { id }, data: { passwordHash: newHash, mustChangePassword: true }, select: adminUserSelect }),
+      prisma.session.deleteMany({ where: { userId: id } }),
+    ]);
     res.status(200).json(user); // the password itself is never echoed back
   } catch {
     res.status(500).json({ error: "Unable to set initial password" });

@@ -147,7 +147,7 @@ describe("deactivation revokes sessions", () => {
     const cookie = await loginAs(email);
     expect((await api().get("/api/auth/me").set("Cookie", cookie)).status).toBe(200);
 
-    const deactivate = await request(app).patch(`/api/admin/users/${user.id}`).set("Cookie", await asAdmin()).send({ isActive: false });
+    const deactivate = await api().patch(`/api/admin/users/${user.id}`).set("Cookie", await asAdmin()).send({ isActive: false });
     expect(deactivate.status).toBe(200);
 
     const after = await api().get("/api/auth/me").set("Cookie", cookie);

@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import request from "supertest";
-import { app } from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
-import { SEEDED, asAdmin, asStaff, cookieFrom, loginAs } from "../helpers/auth.js";
+import { api, SEEDED, asAdmin, asStaff, cookieFrom, loginAs } from "../helpers/auth.js";
 
 let admin: string;
 let adminId: number;
@@ -14,11 +12,11 @@ beforeAll(async () => {
   adminId = (await getPrisma().user.findUniqueOrThrow({ where: { email: SEEDED.admin } })).id;
 });
 
-const list = (query = "") => request(app).get(`/api/admin/users${query}`).set("Cookie", admin);
-const create = (body: object, cookie = admin) => request(app).post("/api/admin/users").set("Cookie", cookie).send(body);
-const patch = (id: number, body: object, cookie = admin) => request(app).patch(`/api/admin/users/${id}`).set("Cookie", cookie).send(body);
+const list = (query = "") => api().get(`/api/admin/users${query}`).set("Cookie", admin);
+const create = (body: object, cookie = admin) => api().post("/api/admin/users").set("Cookie", cookie).send(body);
+const patch = (id: number, body: object, cookie = admin) => api().patch(`/api/admin/users/${id}`).set("Cookie", cookie).send(body);
 const setInitial = (id: number, initialPassword: string) =>
-  request(app).post(`/api/admin/users/${id}/initial-password`).set("Cookie", admin).send({ initialPassword });
+  api().post(`/api/admin/users/${id}/initial-password`).set("Cookie", admin).send({ initialPassword });
 
 const validUser = (tag: string, role = "IT_STAFF") => ({
   name: `Test ${tag}`,
@@ -56,7 +54,10 @@ describe("GET /api/admin/users", () => {
 
     const bogus = await list("?role=SUPERUSER");
     expect(bogus.status).toBe(200);
-    expect(bogus.body.length).toBe((await list()).body.length);
+    // An unknown role is ignored, i.e. the list is unfiltered: it still spans several roles.
+    // (Other test files create users concurrently, so comparing exact counts would race.)
+    const rolesSeen = new Set(bogus.body.map((u: { role: string }) => u.role));
+    expect(rolesSeen.has("REQUESTER") && rolesSeen.has("IT_STAFF") && rolesSeen.has("ADMIN")).toBe(true);
   });
 });
 
@@ -69,9 +70,9 @@ describe("POST /api/admin/users", () => {
     expect(res.body).toMatchObject({ name: payload.name, email: payload.email, role: "IT_STAFF", isActive: true, mustChangePassword: true });
     expect(res.body).not.toHaveProperty("passwordHash");
 
-    const login = await request(app).post("/api/auth/login").send({ email: payload.email, password: "Welcome123!" });
+    const login = await api().post("/api/auth/login").send({ email: payload.email, password: "Welcome123!" });
     expect(login.status).toBe(200);
-    const blocked = await request(app).get("/api/staff/tickets").set("Cookie", cookieFrom(login));
+    const blocked = await api().get("/api/staff/tickets").set("Cookie", cookieFrom(login));
     expect(blocked.status).toBe(403);
     expect(blocked.body.code).toBe("PASSWORD_CHANGE_REQUIRED");
   });
@@ -136,7 +137,7 @@ describe("PATCH /api/admin/users/:id", () => {
     const second = await create(validUser("admin2", "ADMIN"));
     expect(second.status).toBe(201);
     const secondCookie = await loginAs(second.body.email, "Welcome123!");
-    expect((await request(app).get("/api/auth/me").set("Cookie", secondCookie)).status).toBe(200);
+    expect((await api().get("/api/auth/me").set("Cookie", secondCookie)).status).toBe(200);
 
     const demoteSecond = await patch(second.body.id, { role: "IT_STAFF" });
     expect(demoteSecond.status).toBe(200); // two active admins → allowed
@@ -144,7 +145,7 @@ describe("PATCH /api/admin/users/:id", () => {
 
     const deactivateSecond = await patch(second.body.id, { isActive: false });
     expect(deactivateSecond.status).toBe(200);
-    expect((await request(app).get("/api/auth/me").set("Cookie", secondCookie)).status).toBe(401);
+    expect((await api().get("/api/auth/me").set("Cookie", secondCookie)).status).toBe(401);
 
     // Back to one active admin: the role change is refused again.
     const demoteAgain = await patch(adminId, { role: "IT_STAFF" });
@@ -153,25 +154,62 @@ describe("PATCH /api/admin/users/:id", () => {
   });
 });
 
+// API-37 (AC-35, BR-43) — two concurrent demotions with exactly two active Administrators.
+describe("LAST_ADMIN under concurrency", () => {
+  it("lets exactly one of two simultaneous demotions succeed and keeps one active Administrator", async () => {
+    const second = await create(validUser("race-admin", "ADMIN"));
+    expect(second.status).toBe(201);
+    const secondCookie = await loginAs(second.body.email, "Welcome123!");
+    await api().post("/api/auth/change-password").set("Cookie", secondCookie).send({ currentPassword: "Welcome123!", newPassword: "Stronger123", confirmPassword: "Stronger123" });
+
+    // Exactly two active admins now: the seeded one and `second`. Each demotes the other at once.
+    const [a, b] = await Promise.all([
+      patch(second.body.id, { role: "IT_STAFF" }), // seeded admin demotes second
+      patch(adminId, { role: "IT_STAFF" }, secondCookie), // second demotes seeded admin
+    ]);
+    // Exactly one demotion may commit. The loser is refused either by LAST_ADMIN (its role check
+    // passed before the winner committed, then the FOR UPDATE lock showed one admin left) or by
+    // FORBIDDEN (the winner committed first, so the loser is no longer an Administrator when its
+    // role check runs). Both orderings keep BR-43; what must never happen is [200, 200].
+    const statuses = [a.status, b.status].sort();
+    expect(statuses[0]).toBe(200);
+    expect([403, 409]).toContain(statuses[1]);
+    const loser = a.status === 200 ? b : a;
+    expect(["LAST_ADMIN", "FORBIDDEN"]).toContain(loser.body.code);
+    const active = await getPrisma().user.count({ where: { role: "ADMIN", isActive: true } });
+    expect(active).toBe(1);
+
+    // Restore: whoever is still admin promotes the other back, then the temporary admin is retired.
+    const seededStillAdmin = (await getPrisma().user.findUniqueOrThrow({ where: { id: adminId } })).role === "ADMIN";
+    if (seededStillAdmin) {
+      expect((await patch(second.body.id, { isActive: false })).status).toBe(200);
+    } else {
+      expect((await patch(adminId, { role: "ADMIN" }, secondCookie)).status).toBe(200);
+      admin = await asAdmin();
+      expect((await patch(second.body.id, { role: "IT_STAFF", isActive: false })).status).toBe(200);
+    }
+  });
+});
+
 // API-31 (AC-26, BR-44) + SEC-07 via the real API (AC-30, BR-10)
 describe("POST /api/admin/users/:id/initial-password", () => {
   it("ends the user's sessions and forces a change at the next login", async () => {
     const created = await create(validUser("reset", "IT_STAFF"));
     const cookie = await loginAs(created.body.email, "Welcome123!");
-    await request(app)
+    await api()
       .post("/api/auth/change-password")
       .set("Cookie", cookie)
       .send({ currentPassword: "Welcome123!", newPassword: "Stronger123", confirmPassword: "Stronger123" });
-    expect((await request(app).get("/api/auth/me").set("Cookie", cookie)).status).toBe(200);
+    expect((await api().get("/api/auth/me").set("Cookie", cookie)).status).toBe(200);
 
     const reset = await setInitial(created.body.id, "Temporary456");
     expect(reset.status).toBe(200);
     expect(reset.body.mustChangePassword).toBe(true);
     expect(JSON.stringify(reset.body)).not.toContain("Temporary456");
 
-    expect((await request(app).get("/api/auth/me").set("Cookie", cookie)).status).toBe(401);
-    expect((await request(app).post("/api/auth/login").send({ email: created.body.email, password: "Stronger123" })).status).toBe(401);
-    const login = await request(app).post("/api/auth/login").send({ email: created.body.email, password: "Temporary456" });
+    expect((await api().get("/api/auth/me").set("Cookie", cookie)).status).toBe(401);
+    expect((await api().post("/api/auth/login").send({ email: created.body.email, password: "Stronger123" })).status).toBe(401);
+    const login = await api().post("/api/auth/login").send({ email: created.body.email, password: "Temporary456" });
     expect(login.status).toBe(200);
     expect(login.body.user.mustChangePassword).toBe(true);
 
@@ -182,10 +220,10 @@ describe("POST /api/admin/users/:id/initial-password", () => {
   it("deactivating a signed-in user through the API ends their session immediately", async () => {
     const created = await create(validUser("deact", "IT_STAFF"));
     const cookie = await loginAs(created.body.email, "Welcome123!");
-    expect((await request(app).get("/api/auth/me").set("Cookie", cookie)).status).toBe(200);
+    expect((await api().get("/api/auth/me").set("Cookie", cookie)).status).toBe(200);
     expect((await patch(created.body.id, { isActive: false })).status).toBe(200);
-    expect((await request(app).get("/api/auth/me").set("Cookie", cookie)).status).toBe(401);
-    const login = await request(app).post("/api/auth/login").send({ email: created.body.email, password: "Welcome123!" });
+    expect((await api().get("/api/auth/me").set("Cookie", cookie)).status).toBe(401);
+    const login = await api().post("/api/auth/login").send({ email: created.body.email, password: "Welcome123!" });
     expect(login.status).toBe(403);
     expect(login.body.code).toBe("ACCOUNT_INACTIVE");
   });
@@ -194,17 +232,17 @@ describe("POST /api/admin/users/:id/initial-password", () => {
 // API-34 (BR-45) + SEC-04 (AC-29)
 describe("boundaries", () => {
   it("has no delete route", async () => {
-    const res = await request(app).delete("/api/admin/users/1").set("Cookie", admin);
+    const res = await api().delete("/api/admin/users/1").set("Cookie", admin);
     expect(res.status).toBe(404);
   });
 
   it("refuses IT Staff on every admin route with no user data", async () => {
     const staff = await asStaff();
     const responses = [
-      await request(app).get("/api/admin/users").set("Cookie", staff),
+      await api().get("/api/admin/users").set("Cookie", staff),
       await create(validUser("staffattempt"), staff),
       await patch(adminId, { name: "Hacked" }, staff),
-      await request(app).post(`/api/admin/users/${adminId}/initial-password`).set("Cookie", staff).send({ initialPassword: "Temporary456" }),
+      await api().post(`/api/admin/users/${adminId}/initial-password`).set("Cookie", staff).send({ initialPassword: "Temporary456" }),
     ];
     for (const res of responses) {
       expect(res.status).toBe(403);
