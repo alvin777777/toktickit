@@ -57,6 +57,13 @@ describe("Requester calling IT Staff routes", () => {
   it.each([
     ["GET", "/api/staff/tickets"],
     ["GET", "/api/staff/assignees"],
+    ["GET", "/api/staff/tickets/TKT-2026-000001"],
+    ["POST", "/api/staff/tickets/TKT-2026-000001/claim"],
+    ["PATCH", "/api/staff/tickets/TKT-2026-000001/owner"],
+    ["PATCH", "/api/staff/tickets/TKT-2026-000001/it-priority"],
+    ["PATCH", "/api/staff/tickets/TKT-2026-000001/status"],
+    ["GET", "/api/staff/tickets/TKT-2026-000001/internal-notes"],
+    ["POST", "/api/staff/tickets/TKT-2026-000001/internal-notes"],
   ])("%s %s → 403 FORBIDDEN with no data", async (method, path) => {
     const cookie = await asRequester();
     const res = await api()[method.toLowerCase() as "get" | "post" | "patch"](path).set("Cookie", cookie);
@@ -86,6 +93,7 @@ describe("Requester-only endpoints", () => {
         api().post(`/api/tickets/${tn}/attachments`).set("Cookie", cookie).attach("file", Buffer.from([1, 2, 3]), { filename: "y.png", contentType: "image/png" }),
         api().get(`/api/attachments/${attachmentId}`).set("Cookie", cookie),
         api().delete(`/api/attachments/${attachmentId}`).set("Cookie", cookie).send({ reason: "should not be allowed" }),
+        api().post(`/api/tickets/${tn}/requester-resolved`).set("Cookie", cookie),
       ];
       for (const res of await Promise.all(attempts)) {
         expect(res.status, label).toBe(403);
@@ -113,8 +121,11 @@ describe("unauthenticated access", () => {
     ["POST", "/api/auth/change-password"],
     ["GET", "/api/staff/tickets"],
     ["GET", "/api/staff/assignees"],
+    ["GET", "/api/staff/tickets/TKT-2026-000001/internal-notes"],
+    ["GET", "/api/tickets/TKT-2026-000001/comments"],
+    ["POST", "/api/tickets/TKT-2026-000001/requester-resolved"],
   ])("%s %s → 401 UNAUTHENTICATED", async (method, path) => {
-    const res = await api()[method.toLowerCase() as "get" | "post" | "delete"](path);
+    const res = await api()[method.toLowerCase() as "get" | "post" | "delete" | "patch"](path);
     expect(res.status).toBe(401);
     expect(res.body.code).toBe("UNAUTHENTICATED");
   });

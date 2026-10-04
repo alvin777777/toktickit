@@ -40,6 +40,8 @@ model User {
   tickets            Ticket[]  @relation("TicketRequester")
   ownedTickets       Ticket[]  @relation("TicketOwner")
   sessions           Session[]
+  comments           TicketComment[]
+  internalNotes      InternalNote[]
 }
 
 // Lab 3 Issue 2 — server-side sessions (BR-08). Only the SHA-256 of the cookie token is stored.
@@ -111,6 +113,8 @@ model Ticket {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   attachments       Attachment[]
+  comments          TicketComment[]
+  internalNotes     InternalNote[]
 
   @@index([requesterId])
   @@index([createdAt])
@@ -132,6 +136,34 @@ model Attachment {
   uploadedAt       DateTime  @default(now())
   removedAt        DateTime?
   removedReason    String?
+
+  @@index([ticketId])
+}
+
+// Lab 3 Issue 4 — Public Comments (visible to the Requester, IT Staff, Administrators) and Internal
+// Notes (IT Staff / Administrators only). Two tables on purpose: the authorization boundary is
+// structural, so a Requester-facing query physically cannot return a note (specification.md §11).
+// Both are append-only (BR-36); author and createdAt come from the backend.
+model TicketComment {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+model InternalNote {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
 
   @@index([ticketId])
 }

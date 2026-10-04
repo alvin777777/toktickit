@@ -83,6 +83,16 @@ describe("StaffTicketQueue", () => {
     expect(chips).toHaveTextContent("Mine 3");
   });
 
+  it("opens Ticket Detail when a row is clicked (route added with Issue 4)", async () => {
+    vi.spyOn(api, "getStaffQueue").mockResolvedValue(result([item()]));
+    const user = userEvent.setup();
+    renderQueue();
+
+    const table = await screen.findByTestId("queue-table");
+    await user.click(within(table).getByText("TKT-2026-000001", { selector: "td" }));
+    expect(await screen.findByText("Ticket Detail Page")).toBeInTheDocument();
+  });
+
   // UI-11 (AC-14) — search / filter / chip / sort / page all reach the API with the right query.
   it("passes search, status filter, Mine chip, sort toggle, and Next page through to the API", async () => {
     const spy = vi.spyOn(api, "getStaffQueue").mockResolvedValue(result([item()], { totalItems: 25, totalPages: 3 }));
