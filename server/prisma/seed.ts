@@ -77,12 +77,22 @@ const SEED_TICKETS: SeedTicket[] = [
   { requester: T.david, category: "Network", system: "Campus Wi-Fi", summary: "Wi-Fi drops in the seminar room", description: "Wi-Fi disconnects every few minutes in seminar room 4; other rooms on the floor are fine.", requestedPriority: "HIGH", itPriority: "HIGH", status: "REOPENED", owner: T.kevin, daysAgo: 7 },
   { requester: T.mike, category: "Account and Access", system: "Email", summary: "Shared mailbox access", description: "Please grant me access to the department shared mailbox so I can answer student questions during the exam period.", requestedPriority: "LOW", itPriority: "LOW", status: "CANCELLED", owner: null, daysAgo: 10 },
   { requester: T.jen, category: "Network", system: "VPN", summary: "VPN slow in the evenings", description: "VPN throughput drops to almost nothing after 8pm; during the day it is fine.", requestedPriority: "LOW", itPriority: "LOW", status: "NEW", owner: null, daysAgo: 1 },
-  { requester: T.sarah, category: "Software", system: "Grade Submission App", summary: "Grade export produces an empty file", description: "Exporting grades to CSV downloads a 0-byte file for section 2 only.", requestedPriority: "HIGH", itPriority: "HIGH", status: "OPEN", owner: T.robert, daysAgo: 14 },
+  { requester: T.sarah, category: "Software", system: "Grade Submission App", summary: "Grade export produces an empty file", description: "Exporting grades to CSV downloads a 0-byte file for section 2 only.", requestedPriority: "HIGH", itPriority: "HIGH", status: "OPEN", owner: T.lisa, daysAgo: 14 },
 ];
 
 async function seedTickets() {
   const prisma = getPrisma();
-  const users = Object.fromEntries((await prisma.user.findMany()).map((u) => [u.email, u.id]));
+  const allUsers = await prisma.user.findMany();
+  const users = Object.fromEntries(allUsers.map((u) => [u.email, u.id]));
+  // BR-23 — a Ticket Owner must be an *active* IT Staff / Administrator; refuse to seed anything else
+  // (review on PR #41: an inactive owner would never appear in /api/staff/assignees).
+  for (const t of SEED_TICKETS) {
+    if (!t.owner) continue;
+    const owner = allUsers.find((u) => u.email === t.owner);
+    if (!owner || !owner.isActive || owner.role === "REQUESTER") {
+      throw new Error(`Seed ticket "${t.summary}" names an owner that is not an active IT Staff/Administrator: ${t.owner}`);
+    }
+  }
   const categories = Object.fromEntries((await prisma.category.findMany()).map((c) => [c.name, c.id]));
   const systems = Object.fromEntries((await prisma.relatedSystem.findMany()).map((r) => [r.name, r.id]));
   let created = 0;

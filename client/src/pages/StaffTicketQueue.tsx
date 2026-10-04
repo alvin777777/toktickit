@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import { Assignee, Category, QueueItem, getAssignees, getCategories, getStaffQueue } from "../api.js";
 import { ALL_STATUSES, PRIORITY_BADGE, STATUS_LABEL, StatusBadge } from "../components/badges.js";
 
@@ -8,8 +7,6 @@ type SortField = "ticketNumber" | "createdAt" | "itPriority" | "currentStatus";
 
 // ui-spec.md §6 — IT Staff Ticket Queue (FR-13, AC-13/AC-14).
 export default function StaffTicketQueue() {
-  const navigate = useNavigate();
-
   const [categories, setCategories] = useState<Category[]>([]);
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -280,14 +277,11 @@ export default function StaffTicketQueue() {
                     </button>
                   </th>
                   <th>Owner</th>
-                  <th>
-                    <span className="visually-hidden">Open</span>
-                  </th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((t) => (
-                  <tr key={t.id} style={{ cursor: "pointer" }} onClick={() => navigate(`/staff/tickets/${t.ticketNumber}`)}>
+                  <tr key={t.id}>
                     <td className="text-nowrap">{t.ticketNumber}</td>
                     <td className="text-nowrap">{new Date(t.createdAt).toLocaleDateString()}</td>
                     <td className="text-truncate" style={{ maxWidth: 260 }} title={t.summary}>
@@ -310,11 +304,6 @@ export default function StaffTicketQueue() {
                       )}
                     </td>
                     <td>{t.owner ? t.owner.name : <span className="text-muted">Unassigned</span>}</td>
-                    <td>
-                      <Link to={`/staff/tickets/${t.ticketNumber}`} className="small" onClick={(e) => e.stopPropagation()}>
-                        Open
-                      </Link>
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -324,7 +313,7 @@ export default function StaffTicketQueue() {
           {/* Card layout below lg (ui-spec.md §6) */}
           <div className="d-lg-none" data-testid="queue-cards">
             {items.map((t) => (
-              <div key={t.id} className="card mb-2" role="button" onClick={() => navigate(`/staff/tickets/${t.ticketNumber}`)}>
+              <div key={t.id} className="card mb-2">
                 <div className="card-body">
                   <div className="d-flex justify-content-between align-items-center gap-2">
                     <strong>{t.ticketNumber}</strong>
