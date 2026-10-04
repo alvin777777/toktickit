@@ -177,18 +177,28 @@ describe("seed idempotency", () => {
   it("running the seed twice leaves the same users with no duplicates", async () => {
     const prisma = getPrisma();
     const run = () => execFileSync("npx", ["tsx", "prisma/seed.ts"], { cwd: process.cwd(), stdio: "pipe", env: process.env });
+    // Other test files create their own throwaway users concurrently, so compare only the seeded
+    // accounts (by email), not the whole table.
+    const seededEmails = Object.values(SEEDED).concat(["lisa.martinez@toktickit.dev", "david.lee@toktickit.dev"]);
+    const snapshot = () =>
+      prisma.user.findMany({
+        where: { email: { in: seededEmails } },
+        orderBy: { email: "asc" },
+        select: { email: true, role: true, isActive: true, mustChangePassword: true },
+      });
     run();
-    const before = await prisma.user.groupBy({ by: ["role"], _count: { _all: true } });
+    const before = await snapshot();
     run();
-    const after = await prisma.user.groupBy({ by: ["role"], _count: { _all: true } });
+    const after = await snapshot();
     expect(after).toEqual(before);
-    const emails = await prisma.user.findMany({ select: { email: true } });
-    expect(new Set(emails.map((e) => e.email)).size).toBe(emails.length);
-    const roles = Object.fromEntries(after.map((r) => [r.role, r._count._all]));
-    expect(roles.REQUESTER).toBeGreaterThanOrEqual(5);
-    expect(roles.IT_STAFF).toBeGreaterThanOrEqual(4);
-    expect(roles.ADMIN).toBeGreaterThanOrEqual(1);
-    expect(SEEDED.admin).toBe("john.smith@toktickit.dev");
+    expect(before.length).toBe(11);
+    expect(new Set(before.map((u) => u.email)).size).toBe(11);
+    const roles = before.reduce<Record<string, number>>((acc, u) => ({ ...acc, [u.role]: (acc[u.role] ?? 0) + 1 }), {});
+    expect(roles.REQUESTER).toBe(6); // 4 active + 1 inactive + 1 first-login
+    expect(roles.IT_STAFF).toBe(4); // 3 active + 1 inactive
+    expect(roles.ADMIN).toBe(1);
+    const tickets = await prisma.ticket.count({ where: { summary: "Grade export produces an empty file" } }); // seed-only summary
+    expect(tickets).toBe(1); // seeded tickets are not duplicated either
   }, 60_000);
 
   it("seeded accounts have hashed passwords, never plaintext", async () => {

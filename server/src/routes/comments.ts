@@ -72,15 +72,22 @@ commentsRouter.post("/:ticketNumber/requester-resolved", ...asRequester, async (
       where: { ticketNumber: req.params.ticketNumber, requesterId: req.user!.id },
     });
     if (!ticket) return res.status(404).json({ error: "Ticket not found" });
-    if (isTerminal(ticket.currentStatus) || ticket.currentStatus === "RESOLVED") {
-      return res.status(409).json({ error: "This ticket is already resolved or closed.", code: "TICKET_TERMINAL" });
-    }
-    if (ticket.requesterResolvedAt) {
+    // BR-32 / AC-35 — exactly once: the "not yet indicated and not terminal" test and the write are a
+    // single conditional UPDATE, so two simultaneous requests yield one 200 and one 409 (review on
+    // PR #42). Status is deliberately untouched (handout BR-05).
+    const marked = await prisma.ticket.updateMany({
+      where: { id: ticket.id, requesterResolvedAt: null, currentStatus: { notIn: ["RESOLVED", "CLOSED", "CANCELLED"] } },
+      data: { requesterResolvedAt: new Date() },
+    });
+    if (marked.count === 0) {
+      const current = await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } });
+      if (isTerminal(current.currentStatus) || current.currentStatus === "RESOLVED") {
+        return res.status(409).json({ error: "This ticket is already resolved or closed.", code: "TICKET_TERMINAL" });
+      }
       return res.status(409).json({ error: "You already indicated this problem appears resolved.", code: "ALREADY_INDICATED" });
     }
-    const updated = await prisma.ticket.update({
+    const updated = await prisma.ticket.findUniqueOrThrow({
       where: { id: ticket.id },
-      data: { requesterResolvedAt: new Date() }, // status deliberately untouched (handout BR-05)
       include: { attachments: { orderBy: { uploadedAt: "asc" } }, owner: { select: { id: true, name: true } } },
     });
     res.status(200).json({

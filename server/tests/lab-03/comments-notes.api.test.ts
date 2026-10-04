@@ -146,6 +146,19 @@ describe("POST /api/tickets/:ticketNumber/requester-resolved", () => {
     expect((await api().post(`/api/tickets/${tn}/requester-resolved`).set("Cookie", staff)).status).toBe(403);
   });
 
+  // API-36 (AC-35, BR-32) — two simultaneous indications: exactly one is recorded.
+  it("records exactly one of two concurrent indications", async () => {
+    for (let round = 0; round < 3; round++) {
+      const tn = await newTicket(`Concurrent resolved ${round}`);
+      const [a, b] = await Promise.all([
+        api().post(`/api/tickets/${tn}/requester-resolved`).set("Cookie", requester),
+        api().post(`/api/tickets/${tn}/requester-resolved`).set("Cookie", requester),
+      ]);
+      expect([a.status, b.status].sort()).toEqual([200, 409]);
+      expect((a.status === 409 ? a : b).body.code).toBe("ALREADY_INDICATED");
+    }
+  });
+
   it("is refused on a resolved / closed / cancelled ticket", async () => {
     const tn = await newTicket("Already cancelled");
     await api().patch(`/api/staff/tickets/${tn}/status`).set("Cookie", staff).send({ status: "CANCELLED" });

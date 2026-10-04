@@ -86,6 +86,23 @@ describe("POST /api/staff/tickets/:ticketNumber/claim", () => {
     expect(mine.status).toBe(200);
     expect(mine.body.owner.id).toBe(staffId);
   });
+
+  // API-35 (AC-35, BR-27) — two simultaneous claims: exactly one wins.
+  it("lets exactly one of two concurrent claimants win", async () => {
+    for (let round = 0; round < 3; round++) {
+      const tn = await newTicket(`Concurrent claim ${round}`);
+      const [a, b] = await Promise.all([
+        api().post(`/api/staff/tickets/${tn}/claim`).set("Cookie", staff),
+        api().post(`/api/staff/tickets/${tn}/claim`).set("Cookie", staffB),
+      ]);
+      expect([a.status, b.status].sort()).toEqual([200, 409]);
+      const loser = a.status === 409 ? a : b;
+      expect(loser.body.code).toBe("ALREADY_ASSIGNED");
+      const detail = await api().get(`/api/staff/tickets/${tn}`).set("Cookie", staff);
+      expect([staffId, staffBId]).toContain(detail.body.owner.id);
+      expect(detail.body.currentStatus).toBe("OPEN");
+    }
+  });
 });
 
 // API-15 (AC-16, BR-23)

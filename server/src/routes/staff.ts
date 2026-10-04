@@ -142,20 +142,26 @@ staffRouter.get("/tickets/:ticketNumber", async (req: Request, res: Response) =>
 // §4.4 — Claim (BR-26/BR-27/BR-28)
 staffRouter.post("/tickets/:ticketNumber/claim", async (req: Request, res: Response) => {
   try {
+    const prisma = getPrisma();
     const ticket = await loadTicket(req.params.ticketNumber);
     if (!ticket) return res.status(404).json({ error: "Ticket not found" });
     if (isTerminal(ticket.currentStatus)) return terminalConflict(res);
-    if (ticket.ownerId && ticket.ownerId !== req.user!.id) {
+    // BR-27 / AC-35 — first claim wins. The ownership test and the write are one conditional
+    // UPDATE (ownerId IS NULL, or already mine), so two simultaneous claims cannot both succeed
+    // (review on PR #42).
+    const claimed = await prisma.ticket.updateMany({
+      where: { id: ticket.id, OR: [{ ownerId: null }, { ownerId: req.user!.id }], currentStatus: { notIn: ["CLOSED", "CANCELLED"] } },
+      data: { ownerId: req.user!.id, ...(ticket.currentStatus === "NEW" ? { currentStatus: "OPEN" } : {}) },
+    });
+    if (claimed.count === 0) {
+      const current = await loadTicket(req.params.ticketNumber);
+      if (current && isTerminal(current.currentStatus)) return terminalConflict(res);
       return res.status(409).json({
-        error: `This ticket is already owned by ${ticket.owner?.name ?? "another user"}.`,
+        error: `This ticket is already owned by ${current?.owner?.name ?? "another user"}.`,
         code: "ALREADY_ASSIGNED",
       });
     }
-    const updated = await getPrisma().ticket.update({
-      where: { id: ticket.id },
-      data: { ownerId: req.user!.id, ...(ticket.currentStatus === "NEW" ? { currentStatus: "OPEN" } : {}) },
-      include: staffDetailInclude,
-    });
+    const updated = await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id }, include: staffDetailInclude });
     res.status(200).json(serializeStaffTicket(updated));
   } catch {
     res.status(500).json({ error: "Unable to claim ticket" });
