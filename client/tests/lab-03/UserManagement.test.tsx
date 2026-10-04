@@ -25,6 +25,10 @@ function renderUsers() {
   return renderWithAuth(<UserManagement />, { user: ADMIN_USER, route: "/admin/users", path: "/admin/users" });
 }
 
+// The table (≥lg) and the cards (<lg) are both in the DOM — CSS decides which is visible — so
+// scope Edit buttons to the table to avoid duplicate accessible names.
+const editButton = (name: RegExp) => within(screen.getByTestId("users-table")).getByRole("button", { name });
+
 describe("UserManagement", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -52,7 +56,7 @@ describe("UserManagement", () => {
     expect(within(table).getAllByText("Active")).toHaveLength(2);
     expect(within(table).getByText("Inactive")).toBeInTheDocument();
     expect(within(table).getByText(/password change pending/i)).toBeInTheDocument();
-    expect(within(table).getByRole("button", { name: /edit robert wilson/i })).toBeInTheDocument();
+    expect(editButton(/edit robert wilson/i)).toBeInTheDocument();
 
     await u.type(screen.getByLabelText(/search users/i), "rob");
     await waitFor(() => expect(spy).toHaveBeenLastCalledWith({ search: "rob", role: undefined }));
@@ -103,7 +107,8 @@ describe("UserManagement", () => {
     const u = userEvent.setup();
     renderUsers();
 
-    await u.click(await screen.findByRole("button", { name: /edit emily davis/i }));
+    await screen.findByTestId("users-table");
+    await u.click(editButton(/edit emily davis/i));
     let panel = screen.getByTestId("user-panel");
     const nameField = within(panel).getByLabelText(/full name/i);
     await u.clear(nameField);
@@ -114,7 +119,7 @@ describe("UserManagement", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(/saved/i);
 
     // Reopen and set an initial password (confirmation required).
-    await u.click(screen.getByRole("button", { name: /edit emily d\./i }));
+    await u.click(editButton(/edit emily d\./i));
     panel = screen.getByTestId("user-panel");
     await u.type(within(panel).getByLabelText(/new initial password/i), "Temporary456");
     await u.click(within(panel).getByRole("button", { name: /set password/i }));
@@ -125,7 +130,7 @@ describe("UserManagement", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(/signed out and must change it/i);
 
     // Editing yourself: the Active switch is disabled with the explanation.
-    await u.click(screen.getByRole("button", { name: /edit john smith/i }));
+    await u.click(editButton(/edit john smith/i));
     panel = screen.getByTestId("user-panel");
     expect(within(panel).getByLabelText(/active/i)).toBeDisabled();
     expect(within(panel).getByText(/you cannot deactivate your own account/i)).toBeInTheDocument();
@@ -137,7 +142,8 @@ describe("UserManagement", () => {
     const u = userEvent.setup();
     renderUsers();
 
-    await u.click(await screen.findByRole("button", { name: /edit second admin/i }));
+    await screen.findByTestId("users-table");
+    await u.click(editButton(/edit second admin/i));
     const panel = screen.getByTestId("user-panel");
     await u.click(within(panel).getByLabelText(/active/i)); // two active admins → switch enabled
     await u.click(within(panel).getByRole("button", { name: /save changes/i }));

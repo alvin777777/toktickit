@@ -193,7 +193,7 @@ export default function UserManagement() {
                           <UserStatus user={u} />
                         </div>
                       </div>
-                      <button className="btn btn-outline-secondary btn-sm" onClick={() => setPanel({ kind: "edit", user: u })}>
+                      <button className="btn btn-outline-secondary btn-sm" onClick={() => setPanel({ kind: "edit", user: u })} aria-label={`Edit ${u.name}`}>
                         Edit
                       </button>
                     </div>

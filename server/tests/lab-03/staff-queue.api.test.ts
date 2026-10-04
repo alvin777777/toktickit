@@ -30,7 +30,10 @@ describe("GET /api/staff/tickets — queue (API-10, AC-13/AC-14, BR-34)", () => 
     expect(res.status).toBe(200);
     const items: Item[] = res.body.items;
     expect(items.length).toBeGreaterThanOrEqual(10);
-    expect(new Set(items.map((i) => i.requester.name)).size).toBeGreaterThan(1);
+    // The newest 50 may all belong to one requester after an E2E run; the oldest tickets are the
+    // seeded ones, which span four requesters.
+    const oldest = await api().get("/api/staff/tickets?pageSize=50&sortBy=ticketNumber&sortDir=asc").set("Cookie", staff);
+    expect(new Set((oldest.body.items as Item[]).map((i) => i.requester.name)).size).toBeGreaterThan(1);
     for (const item of items) {
       expect(item).toMatchObject({
         ticketNumber: expect.stringMatching(/^TKT-\d{4}-\d{6}$/),
