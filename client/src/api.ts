@@ -266,7 +266,10 @@ export interface TicketDetail {
   summary: string;
   description: string;
   requestedPriority: Priority;
+  itPriority: Priority;
   currentStatus: TicketStatus;
+  owner: { id: number; name: string } | null; // FR-12
+  requesterResolvedAt: string | null;
   attachments: AttachmentInfo[];
 }
 
@@ -324,4 +327,62 @@ export async function downloadAttachment(attachment: AttachmentInfo): Promise<vo
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+// -----------------------------------------------------------------------------
+// Lab 3 Issue 3 — IT Staff Ticket Queue (docs/lab-03/api-spec.md §4.1–§4.2)
+// -----------------------------------------------------------------------------
+export interface NamedRef {
+  id: number;
+  name: string;
+}
+
+export interface QueueItem {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  category: NamedRef;
+  requester: NamedRef;
+  requestedPriority: Priority;
+  itPriority: Priority;
+  currentStatus: TicketStatus;
+  owner: NamedRef | null;
+  requesterResolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QueueResult {
+  items: QueueItem[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  counts: { all: number; unassigned: number; mine: number };
+}
+
+export interface QueueQuery {
+  search?: string;
+  status?: string;
+  itPriority?: string;
+  categoryId?: number;
+  owner?: string; // "unassigned" | "me" | user id
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+}
+
+export async function getStaffQueue(query: QueueQuery): Promise<QueueResult> {
+  return apiFetch<QueueResult>(`/api/staff/tickets?${toQueryString(query as Record<string, unknown>)}`);
+}
+
+export interface Assignee {
+  id: number;
+  name: string;
+  role: Role;
+}
+
+export async function getAssignees(): Promise<Assignee[]> {
+  return apiFetch<Assignee[]>("/api/staff/assignees");
 }
