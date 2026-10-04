@@ -152,4 +152,46 @@ Partner's repo: https://github.com/Ohmmykung09/toktickit
 
 | PR | Branch/Scope | Outcome |
 |----|--------|------------------|
-| (filled in as the partner's Lab 3 PRs are opened) | | |
+| [#61](https://github.com/Ohmmykung09/toktickit/pull/61) | Lab 3: cumulative review for Issues #26–#35 (`lab3-staging` vs `lab2-staging`, 110 files) | Changes requested (3 × P1, 3 × P2, P3 notes) → awaiting partner's fixes |
+
+### PR #61 — my review
+Read the whole server diff (auth-service / auth-router / admin-router / staff-router /
+communication-router / app.ts / migrations / schema) and the client (App.tsx, AuthGate). Findings:
+
+> **[P1] My Tickets only knows `NEW`.** `server/src/app.ts:154` `ticketStatus()` returns `null`
+> (→ 400) for every other value, `displayStatus()` humanizes only NEW, and the dropdown in
+> `client/src/App.tsx:382` offers "All statuses / New". Now that tickets travel through eight
+> statuses, a Requester cannot filter their own tickets and sees raw enum labels — a Lab 2
+> regression (status filter BR) and against handout §8.2.
+>
+> **[P1] Login timing oracle.** `auth-service.ts:140-148` throws immediately for unknown /
+> inactive / unprovisioned / locked accounts without running `passwordMatches`, while real
+> accounts pay the argon2id cost — response time reveals whether an email exists, contradicting
+> BR-01; API-01 checks status/body only. Verify against a dummy hash on every path.
+>
+> **[P1] Lockout (BR-05) is an unrecoverable DoS.** Anyone who knows an email (all seeded ones are
+> in README) can lock the only Administrator with five wrong passwords every 15 minutes; the
+> handout excludes account unlocking, so there is no way out. Throttle per source / (ip, email)
+> or back off without closing the account, and test it.
+>
+> **[P2] Inactive accounts get the generic message** although handout §8.1 / rubric Part 5 ask
+> for distinct inactive handling — compromise: say "inactive" only when the password is correct.
+>
+> **[P2] Deactivating/demoting staff unassigns *every* ticket they own, including RESOLVED/CLOSED**
+> (`admin-router.ts:216-227`), erasing accountability on terminal tickets and contradicting the
+> intent of BR-17; keep owners on terminal tickets (inactive users are already excluded from
+> assignees).
+>
+> **[P2] Problem Appears Resolved is accepted on CANCELLED/CLOSED tickets**
+> (`communication-router.ts:102` checks only `requesterResolutionIndicatedAt: null`), and Public
+> Comments post on CANCELLED tickets — document or block.
+>
+> **[P3]** name edits count as `profileChanged` and revoke all sessions; `search` of whitespace /
+> >100 chars returns 400 instead of being trimmed/ignored; `lastUsedAt` is written on every
+> request before the CSRF check; `User.updatedAt` keeps a DB default while the schema is plain
+> `@updatedAt` — check `prisma migrate diff` for drift.
+>
+> Liked: optimistic concurrency via `updatedAt`, actor row locked in every mutation, separate
+> PublicComment/InternalNote tables, provisioning via `passwordHash NULL` + CHECK constraints.
+
+**Partner's response:** (pending)
