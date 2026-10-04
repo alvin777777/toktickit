@@ -1,22 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
 import CreateTicket from "../../src/pages/CreateTicket.js";
-import { RequesterProvider, REQUESTER_STORAGE_KEY } from "../../src/context/RequesterContext.js";
+import { renderWithAuth } from "../helpers/auth.js";
 import * as api from "../../src/api.js";
 
-const REQUESTER = { id: 1, name: "Jennifer Anderson", email: "jennifer@toktickit.dev" };
-
+// Lab 3: rendered as the authenticated seeded Requester (AuthProvider) instead of a selected one.
 function renderCreateTicket() {
-  localStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(REQUESTER));
-  return render(
-    <MemoryRouter>
-      <RequesterProvider>
-        <CreateTicket />
-      </RequesterProvider>
-    </MemoryRouter>
-  );
+  return renderWithAuth(<CreateTicket />);
 }
 
 function mockRefData() {
@@ -35,7 +26,7 @@ async function fillValidForm(user: ReturnType<typeof userEvent.setup>) {
 
 describe("CreateTicket", () => {
   beforeEach(() => {
-    localStorage.clear();
+    vi.restoreAllMocks();
   });
 
   // UI-05 (AC-04)

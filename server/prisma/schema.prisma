@@ -18,15 +18,42 @@ model Category {
   tickets   Ticket[]
 }
 
-// Lab 2 Issue 2 — Development Requester (testing mechanism, NOT authentication; see
-// docs/lab-02/specification.md BR-03/BR-09/BR-24).
-model RequesterUser {
+// Lab 3 Issue 2 — real users (renamed in place from Lab 2's RequesterUser so every existing
+// Ticket.requesterId keeps its meaning — docs/lab-03/specification.md BR-46). One role per user
+// (BR-12); passwords are scrypt hashes, never plaintext (BR-04).
+enum UserRole {
+  REQUESTER
+  IT_STAFF
+  ADMIN
+}
+
+model User {
+  id                 Int       @id @default(autoincrement())
+  name               String
+  email              String    @unique
+  passwordHash       String
+  role               UserRole  @default(REQUESTER)
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  tickets            Ticket[]  @relation("TicketRequester")
+  ownedTickets       Ticket[]  @relation("TicketOwner")
+  sessions           Session[]
+  comments           TicketComment[]
+  internalNotes      InternalNote[]
+}
+
+// Lab 3 Issue 2 — server-side sessions (BR-08). Only the SHA-256 of the cookie token is stored.
+model Session {
   id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  isActive  Boolean  @default(true)
+  tokenHash String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
-  tickets   Ticket[]
+  expiresAt DateTime
+
+  @@index([userId])
 }
 
 // Lab 2 Issue 3 — Related System (the specific service/device/platform a ticket is about).
@@ -44,8 +71,16 @@ enum Priority {
   HIGH
 }
 
+// Lab 3 Issue 3 — full workflow (docs/lab-03/specification.md BR-25/BR-30).
 enum TicketStatus {
   NEW
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_REQUESTER
+  RESOLVED
+  CLOSED
+  REOPENED
+  CANCELLED
 }
 
 // Per-year counter backing BR-01's ticket-number format (TKT-{year}-{6 digits}); incremented
@@ -59,7 +94,14 @@ model Ticket {
   id                Int           @id @default(autoincrement())
   ticketNumber      String        @unique
   requesterId       Int
-  requester         RequesterUser @relation(fields: [requesterId], references: [id])
+  requester         User          @relation("TicketRequester", fields: [requesterId], references: [id])
+  // Lab 3 Issue 3 — zero or one Ticket Owner (active IT Staff / Administrator, BR-23), IT Priority
+  // (copied from requestedPriority at creation, BR-24), and the Requester's "appears resolved"
+  // signal (BR-32).
+  ownerId           Int?
+  owner             User?         @relation("TicketOwner", fields: [ownerId], references: [id])
+  itPriority        Priority
+  requesterResolvedAt DateTime?
   categoryId        Int
   category          Category      @relation(fields: [categoryId], references: [id])
   relatedSystemId   Int
@@ -71,9 +113,14 @@ model Ticket {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   attachments       Attachment[]
+  comments          TicketComment[]
+  internalNotes     InternalNote[]
 
   @@index([requesterId])
   @@index([createdAt])
+  @@index([ownerId])
+  @@index([currentStatus])
+  @@index([itPriority])
 }
 
 // Lab 2 Issue 3 (created here since Create Ticket needs attachment upload) — soft-removal
@@ -89,6 +136,34 @@ model Attachment {
   uploadedAt       DateTime  @default(now())
   removedAt        DateTime?
   removedReason    String?
+
+  @@index([ticketId])
+}
+
+// Lab 3 Issue 4 — Public Comments (visible to the Requester, IT Staff, Administrators) and Internal
+// Notes (IT Staff / Administrators only). Two tables on purpose: the authorization boundary is
+// structural, so a Requester-facing query physically cannot return a note (specification.md §11).
+// Both are append-only (BR-36); author and createdAt come from the backend.
+model TicketComment {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+model InternalNote {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
 
   @@index([ticketId])
 }

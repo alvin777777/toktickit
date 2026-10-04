@@ -1,17 +1,17 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import request from "supertest";
-import { app } from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
+import { api, asRequester, asRequesterB } from "../helpers/auth.js";
 
-let requesterA: number;
-let requesterB: number;
+// Lab 3: the Requester identity now comes from the session cookie (BR-13), not a header.
+let requesterA: string;
+let requesterB: string;
 let categoryId: number;
 let relatedSystemId: number;
 
-async function createTicket(requesterId: number, summary: string) {
-  const res = await request(app)
+async function createTicket(cookie: string, summary: string) {
+  const res = await api()
     .post("/api/tickets")
-    .set("X-Requester-Id", String(requesterId))
+    .set("Cookie", cookie)
     .field("categoryId", String(categoryId))
     .field("relatedSystemId", String(relatedSystemId))
     .field("summary", summary)
@@ -22,13 +22,8 @@ async function createTicket(requesterId: number, summary: string) {
 
 beforeAll(async () => {
   const prisma = getPrisma();
-  const [reqA, reqB] = await prisma.requesterUser.findMany({
-    where: { isActive: true },
-    orderBy: { id: "asc" },
-    take: 2,
-  });
-  requesterA = reqA.id;
-  requesterB = reqB.id;
+  requesterA = await asRequester();
+  requesterB = await asRequesterB();
   const category = await prisma.category.findFirstOrThrow();
   const relatedSystem = await prisma.relatedSystem.findFirstOrThrow({ where: { isActive: true } });
   categoryId = category.id;
@@ -39,9 +34,9 @@ describe("GET /api/tickets/:ticketNumber", () => {
   it("returns the owned ticket with fields matching what was stored (AC-13)", async () => {
     const created = await createTicket(requesterA, "Ticket detail happy path");
 
-    const res = await request(app)
+    const res = await api()
       .get(`/api/tickets/${created.ticketNumber}`)
-      .set("X-Requester-Id", String(requesterA));
+      .set("Cookie", requesterA);
 
     expect(res.status).toBe(200);
     expect(res.body.ticketNumber).toBe(created.ticketNumber);
@@ -53,17 +48,17 @@ describe("GET /api/tickets/:ticketNumber", () => {
   it("returns 404 for a ticket that isn't owned by the current requester (AC-03, BR-22)", async () => {
     const created = await createTicket(requesterA, "Owned by A only");
 
-    const res = await request(app)
+    const res = await api()
       .get(`/api/tickets/${created.ticketNumber}`)
-      .set("X-Requester-Id", String(requesterB));
+      .set("Cookie", requesterB);
 
     expect(res.status).toBe(404);
   });
 
   it("returns the identical 404 for a ticket number that doesn't exist at all (BR-22)", async () => {
-    const res = await request(app)
+    const res = await api()
       .get("/api/tickets/TKT-1999-999999")
-      .set("X-Requester-Id", String(requesterA));
+      .set("Cookie", requesterA);
 
     expect(res.status).toBe(404);
     expect(res.body.error).toBe("Ticket not found");

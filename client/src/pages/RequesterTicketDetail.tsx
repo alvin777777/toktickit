@@ -1,33 +1,37 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
+  ApiError,
   AttachmentInfo,
   Category,
   RelatedSystem,
   TicketDetail,
   getCategories,
+  getComments,
   getRelatedSystems,
   getTicketDetail,
+  markRequesterResolved,
+  postComment,
 } from "../api.js";
-import { useRequester } from "../context/RequesterContext.js";
+import { useAuth } from "../context/AuthContext.js";
+import { PRIORITY_BADGE, StatusBadge } from "../components/badges.js";
 import AttachmentSection from "../components/AttachmentSection.js";
+import EntryThread from "../components/EntryThread.js";
+import ConfirmBox from "../components/ConfirmBox.js";
 
 type LoadState = "loading" | "success" | "notFound" | "error";
-
-const PRIORITY_BADGE: Record<string, string> = {
-  LOW: "bg-secondary",
-  MEDIUM: "bg-warning text-dark",
-  HIGH: "bg-danger",
-};
 
 // ui-spec.md §5.5 — Requester Ticket Detail (View Mode).
 export default function RequesterTicketDetail() {
   const { ticketNumber } = useParams<{ ticketNumber: string }>();
-  const { requester } = useRequester();
+  const { user } = useAuth();
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [relatedSystems, setRelatedSystems] = useState<RelatedSystem[]>([]);
+  const [confirmResolved, setConfirmResolved] = useState(false);
+  const [resolvedBusy, setResolvedBusy] = useState(false);
+  const [resolvedError, setResolvedError] = useState("");
 
   useEffect(() => {
     // ui-spec.md §5.5 — Category/Related System are shown by name, not id; a failure here
@@ -41,16 +45,16 @@ export default function RequesterTicketDetail() {
   }, []);
 
   useEffect(() => {
-    if (!requester || !ticketNumber) return;
+    if (!ticketNumber) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requester, ticketNumber]);
+  }, [ticketNumber]);
 
   async function load() {
-    if (!requester || !ticketNumber) return;
+    if (!ticketNumber) return;
     setLoadState("loading");
     try {
-      const result = await getTicketDetail(requester.id, ticketNumber);
+      const result = await getTicketDetail(ticketNumber);
       if (!result) {
         setLoadState("notFound"); // BR-22 — identical outcome whether it doesn't exist or isn't owned
         return;
@@ -64,6 +68,22 @@ export default function RequesterTicketDetail() {
 
   function handleAttachmentsChange(attachments: AttachmentInfo[]) {
     setTicket((prev) => (prev ? { ...prev, attachments } : prev));
+  }
+
+  // FR-11 / BR-32 — the signal is a flag; IT Staff still resolve and close.
+  async function handleMarkResolved() {
+    setResolvedError("");
+    setResolvedBusy(true);
+    try {
+      setTicket(await markRequesterResolved(ticketNumber!));
+      setConfirmResolved(false);
+    } catch (err) {
+      setResolvedError(
+        err instanceof ApiError && err.status === 409 ? err.message : "Unable to update the ticket right now. Please try again."
+      );
+    } finally {
+      setResolvedBusy(false);
+    }
   }
 
   if (loadState === "loading") {
@@ -101,6 +121,8 @@ export default function RequesterTicketDetail() {
   }
 
   const readonlyField = { backgroundColor: "#F3F1EA" };
+  const terminal = ["RESOLVED", "CLOSED", "CANCELLED"].includes(ticket.currentStatus);
+  const commentsClosed = ticket.currentStatus === "CLOSED" || ticket.currentStatus === "CANCELLED";
 
   return (
     <div className="container py-4" style={{ maxWidth: 800 }}>
@@ -109,7 +131,35 @@ export default function RequesterTicketDetail() {
           ← Back to My Tickets
         </Link>
       </div>
-      <h1 className="h4 mb-3">Ticket Details</h1>
+      <div className="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <h1 className="h4 mb-0">Ticket Details</h1>
+        {ticket.requesterResolvedAt ? (
+          <span className="badge rounded-pill py-2 px-3" style={{ backgroundColor: "#EAF6EF", color: "#0B7A46" }} data-testid="resolved-chip">
+            ✓ You indicated this problem appears resolved on {new Date(ticket.requesterResolvedAt).toLocaleDateString()}
+          </span>
+        ) : (
+          !terminal && (
+            <button className="btn btn-outline-success btn-sm" onClick={() => setConfirmResolved(true)} disabled={confirmResolved}>
+              Problem Appears Resolved
+            </button>
+          )
+        )}
+      </div>
+      {confirmResolved && (
+        <ConfirmBox
+          title="Let IT Staff know this problem appears resolved?"
+          message="They will still verify and formally resolve or close the ticket."
+          confirmLabel="Yes, it appears resolved"
+          busy={resolvedBusy}
+          onConfirm={handleMarkResolved}
+          onCancel={() => setConfirmResolved(false)}
+        />
+      )}
+      {resolvedError && (
+        <div className="alert alert-danger py-2" role="alert">
+          {resolvedError}
+        </div>
+      )}
 
       <div className="row g-3 mb-3">
         <div className="col-md-6 col-lg-4">
@@ -145,7 +195,7 @@ export default function RequesterTicketDetail() {
             className="form-control"
             style={readonlyField}
             readOnly
-            value={requester?.name ?? ""}
+            value={user?.name ?? ""}
           />
         </div>
         <div className="col-md-6 col-lg-4">
@@ -181,7 +231,25 @@ export default function RequesterTicketDetail() {
         <div className="col-md-6 col-lg-4">
           <label className="form-label fw-semibold small">Current Status</label>
           <div>
-            <span className="badge bg-info text-dark">{ticket.currentStatus}</span>
+            <StatusBadge status={ticket.currentStatus} />
+          </div>
+        </div>
+        <div className="col-md-6 col-lg-4">
+          <label htmlFor="detail-owner" className="form-label fw-semibold small">
+            Ticket Owner
+          </label>
+          <input
+            id="detail-owner"
+            className="form-control"
+            style={readonlyField}
+            readOnly
+            value={ticket.owner?.name ?? "Unassigned"}
+          />
+        </div>
+        <div className="col-md-6 col-lg-4">
+          <label className="form-label fw-semibold small">IT Priority</label>
+          <div>
+            <span className={`badge ${PRIORITY_BADGE[ticket.itPriority]}`}>{ticket.itPriority}</span>
           </div>
         </div>
       </div>
@@ -214,11 +282,21 @@ export default function RequesterTicketDetail() {
       </div>
 
       <AttachmentSection
-        requesterId={requester!.id}
         ticketNumber={ticket.ticketNumber}
         attachments={ticket.attachments}
         onChange={handleAttachmentsChange}
       />
+
+      <div className="mt-4">
+        <h2 className="h6">Public Comments</h2>
+        <EntryThread
+          kind="comment"
+          testId="public-comments"
+          load={() => getComments(ticket.ticketNumber)}
+          post={(body) => postComment(ticket.ticketNumber, body)}
+          disabledReason={commentsClosed ? "Comments are closed for this ticket." : undefined}
+        />
+      </div>
     </div>
   );
 }

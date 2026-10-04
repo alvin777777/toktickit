@@ -1,20 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Category, TicketListItem, getCategories, getMyTickets } from "../api.js";
-import { useRequester } from "../context/RequesterContext.js";
+import { ALL_STATUSES, PRIORITY_BADGE, STATUS_LABEL, StatusBadge } from "../components/badges.js";
 
 type LoadState = "loading" | "success" | "error";
 type SortField = "createdAt" | "requestedPriority" | "currentStatus";
 
-const PRIORITY_BADGE: Record<string, string> = {
-  LOW: "bg-secondary",
-  MEDIUM: "bg-warning text-dark",
-  HIGH: "bg-danger",
-};
-
 // ui-spec.md §5.4 — My Tickets screen.
 export default function MyTickets() {
-  const { requester } = useRequester();
   const navigate = useNavigate();
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -46,17 +39,15 @@ export default function MyTickets() {
   }, []);
 
   useEffect(() => {
-    if (!requester) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requester, search, categoryId, requestedPriority, currentStatus, sortBy, sortDir, page]);
+  }, [search, categoryId, requestedPriority, currentStatus, sortBy, sortDir, page]);
 
   async function load() {
-    if (!requester) return;
     const requestId = ++requestIdRef.current;
     setLoadState("loading");
     try {
-      const result = await getMyTickets(requester.id, {
+      const result = await getMyTickets({
         search,
         categoryId: categoryId ? Number(categoryId) : undefined,
         requestedPriority: requestedPriority || undefined,
@@ -175,7 +166,11 @@ export default function MyTickets() {
               }}
             >
               <option value="">All Statuses</option>
-              <option value="NEW">New</option>
+              {ALL_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_LABEL[s]}
+                </option>
+              ))}
             </select>
           </div>
           <div className="col-6 col-lg-1">
@@ -255,7 +250,7 @@ export default function MyTickets() {
                       <span className={`badge ${PRIORITY_BADGE[t.requestedPriority]}`}>{t.requestedPriority}</span>
                     </td>
                     <td>
-                      <span className="badge bg-info text-dark">{t.currentStatus}</span>
+                      <StatusBadge status={t.currentStatus} />
                     </td>
                     <td>{new Date(t.updatedAt).toLocaleString()}</td>
                   </tr>

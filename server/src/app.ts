@@ -1,12 +1,19 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import multer from "multer";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getPrisma } from "./prisma.js";
-import { requireRequester } from "./middleware/requireRequester.js";
+import { asRequester, authenticated } from "./middleware/auth.js";
+import { authRouter } from "./routes/auth.js";
+import { csrfOriginCheck } from "./middleware/csrf.js";
+import { staffRouter } from "./routes/staff.js";
+import { commentsRouter } from "./routes/comments.js";
+import { adminRouter } from "./routes/admin.js";
 import { generateTicketNumber } from "./services/ticketNumber.js";
+import { isTicketStatus } from "./services/ticketWorkflow.js";
 
 // docs/lab-02/specification.md BR-16 — fixed attachment rules.
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
@@ -37,8 +44,35 @@ function handleUploadError(err: unknown, _req: Request, res: Response, next: (er
 // Supertest can import `app` without opening a port. Do not merge these files.
 export const app = express();
 
-app.use(cors());          // already wired: lets the Vite dev server call this API
+// Lab 3 — the session cookie only travels with credentialed requests from the configured client
+// origin (api-spec.md §0; CSRF notes in specification.md §8).
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
+app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
+// BR-09a — Origin/Referer allow-list on every unsafe method (CSRF). SameSite + CORS alone would
+// still let a same-site page or a simple form POST ride the cookie.
+app.use(csrfOriginCheck);
+app.use(cookieParser());
 app.use(express.json());
+
+// ---------------------------------------------------------------------------
+// Lab 3 Issue 2 — authentication (docs/lab-03/api-spec.md §1)
+// ---------------------------------------------------------------------------
+app.use("/api/auth", authRouter);
+
+// ---------------------------------------------------------------------------
+// Lab 3 Issue 3+ — IT Staff endpoints (docs/lab-03/api-spec.md §4)
+// ---------------------------------------------------------------------------
+app.use("/api/staff", staffRouter);
+
+// ---------------------------------------------------------------------------
+// Lab 3 Issue 4 — Public Comments + "appears resolved" (docs/lab-03/api-spec.md §3.6–§3.8)
+// ---------------------------------------------------------------------------
+app.use("/api/tickets", commentsRouter);
+
+// ---------------------------------------------------------------------------
+// Lab 3 Issue 5 — Administrator user management (docs/lab-03/api-spec.md §5)
+// ---------------------------------------------------------------------------
+app.use("/api/admin", adminRouter);
 
 // ---------------------------------------------------------------------------
 // Issue 2 — API health check
@@ -63,23 +97,6 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
 });
 
 // ---------------------------------------------------------------------------
-// Lab 2 Issue 2 — Development Requester context (docs/lab-02/api-spec.md §1)
-// Testing mechanism only, not authentication — see specification.md BR-03/BR-09.
-// ---------------------------------------------------------------------------
-app.get("/api/requesters", async (_req: Request, res: Response) => {
-  try {
-    const requesters = await getPrisma().requesterUser.findMany({
-      where: { isActive: true },
-      orderBy: { id: "asc" },
-      select: { id: true, name: true, email: true },
-    });
-    res.status(200).json(requesters);
-  } catch {
-    res.status(500).json({ error: "Unable to load development requesters" });
-  }
-});
-
-// ---------------------------------------------------------------------------
 // Lab 2 Issue 3 — Related Systems (docs/lab-02/api-spec.md §3)
 // ---------------------------------------------------------------------------
 app.get("/api/related-systems", async (_req: Request, res: Response) => {
@@ -100,7 +117,7 @@ app.get("/api/related-systems", async (_req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 app.post(
   "/api/tickets",
-  requireRequester,
+  ...asRequester,
   upload.array("attachments"),
   handleUploadError,
   async (req: Request, res: Response) => {
@@ -154,12 +171,13 @@ app.post(
       const ticket = await prisma.ticket.create({
         data: {
           ticketNumber,
-          requesterId: req.requesterId!,
+          requesterId: req.user!.id, // BR-13 — identity from the session, never the client
           categoryId,
           relatedSystemId,
           summary,
           description,
           requestedPriority: requestedPriority as "LOW" | "MEDIUM" | "HIGH",
+          itPriority: requestedPriority as "LOW" | "MEDIUM" | "HIGH", // BR-24 — starts equal
         },
       });
 
@@ -207,7 +225,10 @@ app.post(
         summary: ticket.summary,
         description: ticket.description,
         requestedPriority: ticket.requestedPriority,
+        itPriority: ticket.itPriority,
         currentStatus: ticket.currentStatus,
+        ownerId: ticket.ownerId,
+        requesterResolvedAt: ticket.requesterResolvedAt,
         attachments: savedAttachments.map((a) => ({
           id: a.id,
           originalFilename: a.originalFilename,
@@ -226,7 +247,6 @@ app.post(
 // ---------------------------------------------------------------------------
 const SORTABLE_FIELDS = new Set(["createdAt", "requestedPriority", "currentStatus"]);
 const VALID_PRIORITIES = new Set(["LOW", "MEDIUM", "HIGH"]);
-const VALID_STATUSES = new Set(["NEW"]);
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
 
@@ -238,7 +258,7 @@ function parsePositiveInt(value: unknown, fallback: number): number {
   return Number.isInteger(n) && n > 0 ? n : fallback;
 }
 
-app.get("/api/tickets", requireRequester, async (req: Request, res: Response) => {
+app.get("/api/tickets", ...asRequester, async (req: Request, res: Response) => {
   const prisma = getPrisma();
 
   // BR-13 — invalid page/pageSize fall back to defaults rather than erroring.
@@ -250,7 +270,7 @@ app.get("/api/tickets", requireRequester, async (req: Request, res: Response) =>
   const sortDir = req.query.sortDir === "asc" ? "asc" : "desc";
 
   // BR-11 — requesterId scoping is enforced here, server-side, never left to the UI alone.
-  const where: Record<string, unknown> = { requesterId: req.requesterId };
+  const where: Record<string, unknown> = { requesterId: req.user!.id };
 
   const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
   if (search) {
@@ -267,7 +287,7 @@ app.get("/api/tickets", requireRequester, async (req: Request, res: Response) =>
   if (VALID_PRIORITIES.has(requestedPriority)) where.requestedPriority = requestedPriority;
 
   const currentStatus = String(req.query.currentStatus ?? "");
-  if (VALID_STATUSES.has(currentStatus)) where.currentStatus = currentStatus;
+  if (isTicketStatus(currentStatus)) where.currentStatus = currentStatus; // BR-33 — every Lab 3 status
 
   try {
     const [items, totalItems] = await Promise.all([
@@ -282,6 +302,7 @@ app.get("/api/tickets", requireRequester, async (req: Request, res: Response) =>
           summary: true,
           categoryId: true,
           requestedPriority: true,
+          itPriority: true,
           currentStatus: true,
           createdAt: true,
           updatedAt: true,
@@ -327,12 +348,12 @@ function serializeAttachment(a: {
 // ---------------------------------------------------------------------------
 // Lab 2 Issue 5 — Requester Ticket Detail (docs/lab-02/api-spec.md §6)
 // ---------------------------------------------------------------------------
-app.get("/api/tickets/:ticketNumber", requireRequester, async (req: Request, res: Response) => {
+app.get("/api/tickets/:ticketNumber", ...asRequester, async (req: Request, res: Response) => {
   try {
     // BR-22/AC-03 — "doesn't exist" and "not yours" return the identical 404.
     const ticket = await getPrisma().ticket.findFirst({
-      where: { ticketNumber: req.params.ticketNumber, requesterId: req.requesterId },
-      include: { attachments: { orderBy: { uploadedAt: "asc" } } },
+      where: { ticketNumber: req.params.ticketNumber, requesterId: req.user!.id },
+      include: { attachments: { orderBy: { uploadedAt: "asc" } }, owner: { select: { id: true, name: true } } },
     });
     if (!ticket) return res.status(404).json({ error: "Ticket not found" });
 
@@ -346,7 +367,10 @@ app.get("/api/tickets/:ticketNumber", requireRequester, async (req: Request, res
       summary: ticket.summary,
       description: ticket.description,
       requestedPriority: ticket.requestedPriority,
+      itPriority: ticket.itPriority,
       currentStatus: ticket.currentStatus,
+      owner: ticket.owner, // { id, name } | null — FR-12
+      requesterResolvedAt: ticket.requesterResolvedAt,
       attachments: ticket.attachments.map(serializeAttachment),
     });
   } catch {
@@ -359,13 +383,13 @@ app.get("/api/tickets/:ticketNumber", requireRequester, async (req: Request, res
 // ---------------------------------------------------------------------------
 app.post(
   "/api/tickets/:ticketNumber/attachments",
-  requireRequester,
+  ...asRequester,
   upload.single("file"),
   handleUploadError,
   async (req: Request, res: Response) => {
     try {
       const ticket = await getPrisma().ticket.findFirst({
-        where: { ticketNumber: req.params.ticketNumber, requesterId: req.requesterId },
+        where: { ticketNumber: req.params.ticketNumber, requesterId: req.user!.id },
       });
       if (!ticket) return res.status(404).json({ error: "Ticket not found" });
 
@@ -413,13 +437,13 @@ app.post(
 // ---------------------------------------------------------------------------
 // Lab 2 Issue 5 — Attachment metadata, download, and soft removal (api-spec.md §8-10)
 // ---------------------------------------------------------------------------
-app.get("/api/attachments/:id", requireRequester, async (req: Request, res: Response) => {
+app.get("/api/attachments/:id", ...asRequester, async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) return res.status(404).json({ error: "Attachment not found" });
 
   try {
     const attachment = await getPrisma().attachment.findFirst({
-      where: { id, ticket: { requesterId: req.requesterId } },
+      where: { id, ticket: { requesterId: req.user!.id } },
     });
     if (!attachment) return res.status(404).json({ error: "Attachment not found" });
     res.status(200).json(serializeAttachment(attachment));
@@ -428,14 +452,20 @@ app.get("/api/attachments/:id", requireRequester, async (req: Request, res: Resp
   }
 });
 
-app.get("/api/attachments/:id/download", requireRequester, async (req: Request, res: Response) => {
+// Download is the one attachment route IT Staff / Administrators share (api-spec.md §3.5): a
+// Requester is still limited to their own tickets, staff may fetch any ticket's active file.
+app.get("/api/attachments/:id/download", ...authenticated, async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) return res.status(404).json({ error: "Attachment not found" });
 
   try {
     // removedAt: null — a removed attachment 404s exactly like a nonexistent one (BR-18/AC-16).
     const attachment = await getPrisma().attachment.findFirst({
-      where: { id, removedAt: null, ticket: { requesterId: req.requesterId } },
+      where: {
+        id,
+        removedAt: null,
+        ...(req.user!.role === "REQUESTER" ? { ticket: { requesterId: req.user!.id } } : {}),
+      },
     });
     if (!attachment) return res.status(404).json({ error: "Attachment not found" });
 
@@ -452,7 +482,7 @@ app.get("/api/attachments/:id/download", requireRequester, async (req: Request, 
   }
 });
 
-app.delete("/api/attachments/:id", requireRequester, async (req: Request, res: Response) => {
+app.delete("/api/attachments/:id", ...asRequester, async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const reason = String(req.body?.reason ?? "").trim();
 
@@ -467,7 +497,7 @@ app.delete("/api/attachments/:id", requireRequester, async (req: Request, res: R
 
   try {
     const attachment = await getPrisma().attachment.findFirst({
-      where: { id, ticket: { requesterId: req.requesterId } },
+      where: { id, ticket: { requesterId: req.user!.id } },
     });
     if (!attachment) return res.status(404).json({ error: "Attachment not found" });
     if (attachment.removedAt) {

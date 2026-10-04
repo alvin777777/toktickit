@@ -1,23 +1,17 @@
 import { describe, it, expect } from "vitest";
-import request from "supertest";
-import { app } from "../../src/app.js";
+import { api, asRequester } from "../helpers/auth.js";
 
-// API-11 — GET /api/requesters returns only isActive=true requesters (BR-09).
-// Requires the DB to be migrated and seeded first (see prisma/seed.ts).
-describe("GET /api/requesters", () => {
-  it("returns only active development requesters", async () => {
-    const res = await request(app).get("/api/requesters");
-    expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBeGreaterThanOrEqual(4);
+// API-11 (Lab 2) — replaced for Lab 3 (docs/lab-03/tests.md §3 / MIG-03, FR-08): the Development
+// Requester endpoint no longer exists, authenticated or not.
+describe("GET /api/requesters (removed in Lab 3)", () => {
+  it("is gone for anonymous callers", async () => {
+    const res = await api().get("/api/requesters");
+    expect(res.status).toBe(404);
+  });
 
-    const names: string[] = res.body.map((r: { name: string }) => r.name);
-    expect(names).not.toContain("Former Employee"); // seeded as inactive
-
-    for (const requester of res.body) {
-      expect(requester).toHaveProperty("id");
-      expect(requester).toHaveProperty("name");
-      expect(requester).toHaveProperty("email");
-    }
+  it("is gone for authenticated callers too", async () => {
+    const cookie = await asRequester();
+    const res = await api().get("/api/requesters").set("Cookie", cookie);
+    expect(res.status).toBe(404);
   });
 });
