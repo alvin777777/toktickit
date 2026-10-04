@@ -152,7 +152,7 @@ Partner's repo: https://github.com/Ohmmykung09/toktickit
 
 | PR | Branch/Scope | Outcome |
 |----|--------|------------------|
-| [#61](https://github.com/Ohmmykung09/toktickit/pull/61) | Lab 3: cumulative review for Issues #26–#35 (`lab3-staging` vs `lab2-staging`, 110 files) | Changes requested (3 × P1, 3 × P2, P3 notes) → awaiting partner's fixes |
+| [#61](https://github.com/Ohmmykung09/toktickit/pull/61) | Lab 3: cumulative review for Issues #26–#35 (`lab3-staging` vs `lab2-staging`, 110 files) | Changes requested (3 × P1, 3 × P2, P3 notes) → all fixed in `ae73f56` → approved ("LGTM") |
 
 ### PR #61 — my review
 Read the whole server diff (auth-service / auth-router / admin-router / staff-router /
@@ -194,4 +194,14 @@ communication-router / app.ts / migrations / schema) and the client (App.tsx, Au
 > Liked: optimistic concurrency via `updatedAt`, actor row locked in every mutation, separate
 > PublicComment/InternalNote tables, provisioning via `passwordHash NULL` + CHECK constraints.
 
-**Partner's response:** (pending)
+**Partner's response:** "Thanks for the detailed review. I addressed all requested changes in
+commit ae73f568" — My Tickets accepts/labels all eight statuses; login always runs Argon2id
+against a dummy hash before a generic failure; global lockout replaced by bounded progressive
+backoff; a correct password on an inactive account returns 403 `ACCOUNT_INACTIVE`; deactivation /
+demotion keeps ownership on RESOLVED/CLOSED/CANCELLED tickets; Problem Appears Resolved and Public
+Comments rejected on CLOSED/CANCELLED; name-only edits no longer revoke sessions, blank searches
+ignored, `lastUsedAt` touched only after auth/CSRF; `User.updatedAt` migration fix + regression
+tests + docs.
+
+My follow-up: verified the diff of `ae73f56` point by point and approved ("LGTM"). I have only
+read access to the partner's repository, so the merge itself is theirs to perform.
