@@ -1,4 +1,15 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from "@playwright/test";
+
+// Lab 3: the Development Requester selector is gone — sign in as a seeded Requester instead
+// (credentials from server/prisma/seed.ts, local development only). Each browser context gets its
+// own session cookie, so Requester A and B isolation works exactly as before.
+async function loginAs(page: Page, email: string) {
+  await page.goto("/login");
+  await page.getByLabel(/email address/i).fill(email);
+  await page.getByLabel(/^password/i).fill("Password123!");
+  await page.getByRole("button", { name: /sign in/i }).click();
+  await expect(page).toHaveURL(/\/tickets$/);
+}
 
 // E2E-01 (AC-01, AC-13) — full Requester flow: select requester → create ticket →
 // find it in My Tickets → open Detail and confirm the same data is shown.
@@ -13,9 +24,7 @@ test.describe("Requester ticket flow", () => {
   test("select requester, create a ticket, find it in My Tickets, open Detail", async ({ page }) => {
     const summary = `E2E flow ticket ${Date.now()}`;
 
-    await page.goto("/select");
-    await page.getByLabel(/Development Requester/i).selectOption({ label: "Jennifer Anderson" });
-    await page.getByRole("button", { name: /continue/i }).click();
+    await loginAs(page, "jennifer.anderson@toktickit.dev");
 
     await expect(page).toHaveURL(/\/tickets$/);
     await page.getByRole("link", { name: "+ Create Ticket" }).click();
@@ -44,12 +53,10 @@ test.describe("Requester ticket flow", () => {
     await expect(page.getByLabel("Summary")).toHaveValue(summary);
   });
 
-  test("Requester B cannot see or open Requester A's ticket", async ({ page, context }) => {
+  test("Requester B cannot see or open Requester A's ticket", async ({ page, browser }) => {
     // Create a ticket as Requester A.
     const summary = `Isolation test ${Date.now()}`;
-    await page.goto("/select");
-    await page.getByLabel(/Development Requester/i).selectOption({ label: "Jennifer Anderson" });
-    await page.getByRole("button", { name: /continue/i }).click();
+    await loginAs(page, "jennifer.anderson@toktickit.dev");
     await page.getByRole("link", { name: "+ Create Ticket" }).click();
     await page.getByLabel(/^Category/).selectOption({ index: 1 });
     await page.getByLabel(/Related System/).selectOption({ index: 1 });
@@ -59,11 +66,9 @@ test.describe("Requester ticket flow", () => {
     await page.getByRole("button", { name: /create ticket/i }).click();
     const ticketNumber = await page.getByText(/^TKT-\d{4}-\d{6}$/).textContent();
 
-    // Switch to Requester B in a fresh context (own localStorage) and check isolation.
-    const pageB = await context.newPage();
-    await pageB.goto("/select");
-    await pageB.getByLabel(/Development Requester/i).selectOption({ label: "Michael Brown" });
-    await pageB.getByRole("button", { name: /continue/i }).click();
+    // Requester B in a fresh browser context (own cookie jar) must not see A's ticket.
+    const pageB = await browser.newPage();
+    await loginAs(pageB, "michael.brown@toktickit.dev");
     await pageB.getByLabel(/search tickets/i).fill(summary);
     await expect(pageB.getByText(summary)).toHaveCount(0);
 

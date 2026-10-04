@@ -18,15 +18,39 @@ model Category {
   tickets   Ticket[]
 }
 
-// Lab 2 Issue 2 — Development Requester (testing mechanism, NOT authentication; see
-// docs/lab-02/specification.md BR-03/BR-09/BR-24).
-model RequesterUser {
+// Lab 3 Issue 2 — real users (renamed in place from Lab 2's RequesterUser so every existing
+// Ticket.requesterId keeps its meaning — docs/lab-03/specification.md BR-46). One role per user
+// (BR-12); passwords are scrypt hashes, never plaintext (BR-04).
+enum UserRole {
+  REQUESTER
+  IT_STAFF
+  ADMIN
+}
+
+model User {
+  id                 Int       @id @default(autoincrement())
+  name               String
+  email              String    @unique
+  passwordHash       String
+  role               UserRole  @default(REQUESTER)
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  tickets            Ticket[]
+  sessions           Session[]
+}
+
+// Lab 3 Issue 2 — server-side sessions (BR-08). Only the SHA-256 of the cookie token is stored.
+model Session {
   id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  isActive  Boolean  @default(true)
+  tokenHash String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
-  tickets   Ticket[]
+  expiresAt DateTime
+
+  @@index([userId])
 }
 
 // Lab 2 Issue 3 — Related System (the specific service/device/platform a ticket is about).
@@ -59,7 +83,7 @@ model Ticket {
   id                Int           @id @default(autoincrement())
   ticketNumber      String        @unique
   requesterId       Int
-  requester         RequesterUser @relation(fields: [requesterId], references: [id])
+  requester         User          @relation(fields: [requesterId], references: [id])
   categoryId        Int
   category          Category      @relation(fields: [categoryId], references: [id])
   relatedSystemId   Int

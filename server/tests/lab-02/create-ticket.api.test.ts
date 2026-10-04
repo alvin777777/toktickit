@@ -1,27 +1,25 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import request from "supertest";
-import { app } from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
+import { api, asRequester } from "../helpers/auth.js";
 
-let requesterId: number;
+let cookie: string; // Lab 3: session cookie instead of X-Requester-Id (BR-13)
 let categoryId: number;
 let relatedSystemId: number;
 
 beforeAll(async () => {
   const prisma = getPrisma();
-  const requester = await prisma.requesterUser.findFirstOrThrow({ where: { isActive: true } });
+  cookie = await asRequester();
   const category = await prisma.category.findFirstOrThrow();
   const relatedSystem = await prisma.relatedSystem.findFirstOrThrow({ where: { isActive: true } });
-  requesterId = requester.id;
   categoryId = category.id;
   relatedSystemId = relatedSystem.id;
 });
 
 describe("POST /api/tickets", () => {
   it("creates a ticket with valid data (AC-01)", async () => {
-    const res = await request(app)
+    const res = await api()
       .post("/api/tickets")
-      .set("X-Requester-Id", String(requesterId))
+      .set("Cookie", cookie)
       .field("categoryId", String(categoryId))
       .field("relatedSystemId", String(relatedSystemId))
       .field("summary", "Laptop battery drains quickly")
@@ -35,9 +33,9 @@ describe("POST /api/tickets", () => {
   });
 
   it("rejects missing summary (AC-04)", async () => {
-    const res = await request(app)
+    const res = await api()
       .post("/api/tickets")
-      .set("X-Requester-Id", String(requesterId))
+      .set("Cookie", cookie)
       .field("categoryId", String(categoryId))
       .field("relatedSystemId", String(relatedSystemId))
       .field("description", "Valid description that is long enough to pass.")
@@ -48,9 +46,9 @@ describe("POST /api/tickets", () => {
   });
 
   it("rejects missing description (AC-05)", async () => {
-    const res = await request(app)
+    const res = await api()
       .post("/api/tickets")
-      .set("X-Requester-Id", String(requesterId))
+      .set("Cookie", cookie)
       .field("categoryId", String(categoryId))
       .field("relatedSystemId", String(relatedSystemId))
       .field("summary", "Valid summary here")
@@ -64,9 +62,9 @@ describe("POST /api/tickets", () => {
     const validImage = Buffer.from([0x89, 0x50, 0x4e, 0x47]); // tiny fake PNG bytes
     const oversized = Buffer.alloc(6 * 1024 * 1024, 1); // 6MB > 5MB limit
 
-    const res = await request(app)
+    const res = await api()
       .post("/api/tickets")
-      .set("X-Requester-Id", String(requesterId))
+      .set("Cookie", cookie)
       .field("categoryId", String(categoryId))
       .field("relatedSystemId", String(relatedSystemId))
       .field("summary", "Mixed attachment test ticket")
@@ -85,9 +83,9 @@ describe("POST /api/tickets", () => {
   // Requested by review on PR #25 — Multer used to abort before this validation could run.
   it("rejects more than 5 attachments with a 400 field error, not a Multer crash (BR-16)", async () => {
     const tinyFile = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
-    let req = request(app)
+    let req = api()
       .post("/api/tickets")
-      .set("X-Requester-Id", String(requesterId))
+      .set("Cookie", cookie)
       .field("categoryId", String(categoryId))
       .field("relatedSystemId", String(relatedSystemId))
       .field("summary", "Too many attachments")

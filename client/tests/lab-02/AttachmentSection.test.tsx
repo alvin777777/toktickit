@@ -27,7 +27,7 @@ describe("AttachmentSection", () => {
     const user = userEvent.setup();
 
     render(
-      <AttachmentSection requesterId={1} ticketNumber="TKT-2026-000001" attachments={[]} onChange={onChange} />
+      <AttachmentSection ticketNumber="TKT-2026-000001" attachments={[]} onChange={onChange} />
     );
 
     const file = new File([new Uint8Array(10)], "new-photo.png", { type: "image/png" });
@@ -48,7 +48,6 @@ describe("AttachmentSection", () => {
 
     render(
       <AttachmentSection
-        requesterId={1}
         ticketNumber="TKT-2026-000001"
         attachments={[active]}
         onChange={onChange}
@@ -67,7 +66,7 @@ describe("AttachmentSection", () => {
   it("renders a removed attachment as metadata-only, without Download or Remove actions", () => {
     const removed = attachment({ removedAt: "2026-09-06T11:00:00.000Z", removedReason: "Duplicate upload" });
     render(
-      <AttachmentSection requesterId={1} ticketNumber="TKT-2026-000001" attachments={[removed]} onChange={vi.fn()} />
+      <AttachmentSection ticketNumber="TKT-2026-000001" attachments={[removed]} onChange={vi.fn()} />
     );
 
     expect(screen.getByText(/duplicate upload/i)).toBeInTheDocument();
@@ -87,7 +86,6 @@ describe("AttachmentSection", () => {
     });
     render(
       <AttachmentSection
-        requesterId={1}
         ticketNumber="TKT-2026-000001"
         attachments={[active, removed]}
         onChange={vi.fn()}
@@ -102,7 +100,6 @@ describe("AttachmentSection", () => {
     const user = userEvent.setup();
     render(
       <AttachmentSection
-        requesterId={1}
         ticketNumber="TKT-2026-000001"
         attachments={[attachment()]}
         onChange={vi.fn()}
