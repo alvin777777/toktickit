@@ -18,6 +18,8 @@ access. The same agent acted as the *specification agent* (Issue 1) and the *cod
 | 7 | Unreachable rule | (Agent reasoning while writing API-33) | While writing the LAST_ADMIN test it worked out that "deactivate the last active Administrator" can never be reached through the API: any other actor would be a second active admin, and self-deactivation is refused first (BR-42). The test now exercises the reachable role-change branch and the two-admins-allowed case, the server keeps the deactivation branch as defence in depth, and the PR says so instead of pretending the test covers both. |
 | 8 | Cross-file test interference | (Agent noticed `asAdmin()` failing in an unrelated file) | The first LAST_ADMIN test deactivated the seeded admin, which — by design (BR-10) — killed every other test file's admin session. Rather than serialising the whole suite, the agent rewrote the test so the seeded admin is never deactivated; the suite was then run twice to confirm stability. |
 
+| 9 | Act on the peer review | "เพื่อนรีวิวมาแล้ว" (my partner has reviewed) | Had the agent read the real review state with `gh pr view` / `gh api …/pulls/N/comments` instead of my summary: 5 of 6 PRs had "Changes requested" with 16 findings, mostly P1 (CSRF via `Origin`/`Referer`, no shared migration password, real migration test on a Lab 2 schema, mid-session 401 handling, conditional updates for claim / appears-resolved, row-locked transaction for LAST_ADMIN, transactional credential + session changes). Each fix was committed on the PR's own layer, the stack was rebased upward (`git rebase --onto`), and every PR got a reply mapping each finding to its fix and test. One finding changed a test rather than code: under a true race the losing demotion can legitimately be 403 (role gone) instead of 409, so the test asserts "exactly one success, one admin remains" rather than a single status. |
+
 ## Reflection
 
 Lab 3 was the first sprint where the agent had to change *existing* data and behaviour instead of
@@ -32,3 +34,10 @@ Where I still had to steer: the agent happily opened a PR on a failing test beca
 hid the exit code, and it initially tested the LAST_ADMIN rule by deactivating the one account every
 other test depends on. Both were caught by reading the actual output rather than the summary line,
 which remains the single most valuable habit from Labs 1–3.
+
+The peer review round was the most valuable input of the sprint. My partner found that the spec's
+CSRF story was wrong (SameSite + CORS), that the migration quietly handed every old account the same
+documented password, and that several "check then write" sequences were races — none of which the
+green test suites had caught, because the tests encoded the same assumptions as the code. The
+fixes are small; the lesson is that a second reader who argues from the threat model rather than
+from the implementation finds a different class of bug than tests written by the author.

@@ -32,7 +32,7 @@ describe("GET /api/staff/tickets — queue (API-10, AC-13/AC-14, BR-34)", () => 
     expect(items.length).toBeGreaterThanOrEqual(10);
     // The newest 50 may all belong to one requester after an E2E run; the oldest tickets are the
     // seeded ones, which span four requesters.
-    const oldest = await request(app).get("/api/staff/tickets?pageSize=50&sortBy=ticketNumber&sortDir=asc").set("Cookie", staff);
+    const oldest = await api().get("/api/staff/tickets?pageSize=50&sortBy=ticketNumber&sortDir=asc").set("Cookie", staff);
     expect(new Set((oldest.body.items as Item[]).map((i) => i.requester.name)).size).toBeGreaterThan(1);
     for (const item of items) {
       expect(item).toMatchObject({

@@ -29,11 +29,14 @@ export async function createUserViaApi(
   request: APIRequestContext,
   input: { name: string; email: string; role: "REQUESTER" | "IT_STAFF" | "ADMIN"; initialPassword: string }
 ) {
-  const login = await request.post(`${API}/api/auth/login`, { data: { email: ACCOUNTS.admin, password: SEED_PASSWORD } });
+  // BR-09a — the API refuses unsafe requests without the client Origin; Playwright's Node-side
+  // request context does not send one, so set it explicitly (a browser page does automatically).
+  const headers = { Origin: "http://localhost:5173" };
+  const login = await request.post(`${API}/api/auth/login`, { headers, data: { email: ACCOUNTS.admin, password: SEED_PASSWORD } });
   expect(login.ok()).toBeTruthy();
-  const res = await request.post(`${API}/api/admin/users`, { data: { ...input, isActive: true } });
+  const res = await request.post(`${API}/api/admin/users`, { headers, data: { ...input, isActive: true } });
   expect(res.status(), await res.text()).toBe(201);
-  await request.post(`${API}/api/auth/logout`);
+  await request.post(`${API}/api/auth/logout`, { headers });
   return (await res.json()) as { id: number; email: string };
 }
 

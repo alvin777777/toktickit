@@ -185,7 +185,60 @@ cd e2e && npm test       # E2E + responsive screenshots (Playwright; needs both 
 
 ## 7. Final Results
 
-To be filled in on `main` at the end of Issue 6 (terminal output pasted here for the submission).
+Run on the final Lab 3 branch (feature/16-e2e-qa-release, identical content to the `lab3-staging`
+release) on 2026-10-04, after the peer-review fixes, against a freshly reset and seeded database
+(`npx prisma migrate reset`):
+
+```
+$ cd server && npm test
+ ✓ tests/lab-01/categories.test.ts (1 test)
+ ✓ tests/lab-01/health.test.ts (1 test)
+ ✓ tests/lab-02/attachments.api.test.ts (8 tests)
+ ✓ tests/lab-02/auth-context.api.test.ts (5 tests)
+ ✓ tests/lab-02/create-ticket.api.test.ts (5 tests)
+ ✓ tests/lab-02/my-tickets.api.test.ts (5 tests)
+ ✓ tests/lab-02/requesters.api.test.ts (2 tests)
+ ✓ tests/lab-02/ticket-detail.api.test.ts (3 tests)
+ ✓ tests/lab-02/ticket-number.unit.test.ts (1 test)
+ ✓ tests/lab-03/atomicity.api.test.ts (3 tests)
+ ✓ tests/lab-03/auth.api.test.ts (11 tests)
+ ✓ tests/lab-03/authorization.api.test.ts (31 tests)
+ ✓ tests/lab-03/comments-notes.api.test.ts (10 tests)
+ ✓ tests/lab-03/csrf.api.test.ts (6 tests)
+ ✓ tests/lab-03/migration-regression.api.test.ts (5 tests)
+ ✓ tests/lab-03/password.unit.test.ts (12 tests)
+ ✓ tests/lab-03/staff-queue.api.test.ts (7 tests)
+ ✓ tests/lab-03/staff-ticket-detail.api.test.ts (10 tests)
+ ✓ tests/lab-03/status-transitions.unit.test.ts (11 tests)
+ ✓ tests/lab-03/users-admin.api.test.ts (13 tests)
+ Test Files  20 passed (20)
+      Tests  150 passed (150)        # run twice in a row; 150/150 both times
+
+$ cd client && npm test
+ ✓ tests/lab-01/App.test.tsx (3 tests)
+ ✓ tests/lab-02/AttachmentSection.test.tsx (5 tests)
+ ✓ tests/lab-02/CreateTicket.test.tsx (7 tests)
+ ✓ tests/lab-02/MyTickets.test.tsx (6 tests)
+ ✓ tests/lab-02/RequesterTicketDetail.test.tsx (2 tests)
+ ✓ tests/lab-03/AppShell.test.tsx (5 tests)
+ ✓ tests/lab-03/ChangePassword.test.tsx (5 tests)
+ ✓ tests/lab-03/Login.test.tsx (9 tests)
+ ✓ tests/lab-03/RequesterComments.test.tsx (4 tests)
+ ✓ tests/lab-03/RequireAuth.test.tsx (5 tests)
+ ✓ tests/lab-03/SessionExpiry.test.tsx (4 tests)
+ ✓ tests/lab-03/StaffTicketDetail.test.tsx (7 tests)
+ ✓ tests/lab-03/StaffTicketQueue.test.tsx (7 tests)
+ ✓ tests/lab-03/UserManagement.test.tsx (6 tests)
+ Test Files  14 passed (14)
+      Tests  75 passed (75)
+
+$ cd e2e && npm test        # lab-02 (5 tests) + lab-03 (11 tests) × desktop/tablet/mobile
+  48 passed (1.3m)
+```
+
+Totals: **150 server** (34 migrated Lab 2 regression + 116 Lab 3: 23 unit, 55 API incl. CSRF /
+concurrency / atomicity, 31 authorization, 5 migration) · **75 client** (20 migrated Lab 2 + 3 Lab 1
++ 52 Lab 3) · **48 E2E/responsive** (16 scenarios × 3 viewports) — 273 automated checks, 0 skipped.
 
 ## 8. Known Limitations or Deferred Tests
 
