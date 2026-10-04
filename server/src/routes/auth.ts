@@ -5,8 +5,8 @@ import {
   SESSION_COOKIE,
   clearSessionCookie,
   createSession,
-  deleteAllSessionsForUser,
   deleteSessionByToken,
+  hashToken,
   setSessionCookie,
 } from "../services/session.js";
 import { requireAuth, serializeUser } from "../middleware/auth.js";
@@ -101,12 +101,13 @@ authRouter.post("/change-password", requireAuth, async (req: Request, res: Respo
     }
     if (Object.keys(fields).length > 0) return res.status(400).json({ error: "Invalid password change", fields });
 
-    const updated = await prisma.user.update({
-      where: { id: user.id },
-      data: { passwordHash: await hashPassword(newPassword), mustChangePassword: false },
-    });
-    // BR-07 — every other session of this user ends; the current one continues.
-    await deleteAllSessionsForUser(user.id, req.sessionToken);
+    // BR-07 / AC-36 — the password update and the revocation of every *other* session are one
+    // transaction: either both happen or neither (review on PR #40).
+    const newHash = await hashPassword(newPassword);
+    const [updated] = await prisma.$transaction([
+      prisma.user.update({ where: { id: user.id }, data: { passwordHash: newHash, mustChangePassword: false } }),
+      prisma.session.deleteMany({ where: { userId: user.id, tokenHash: { not: hashToken(req.sessionToken!) } } }),
+    ]);
     res.status(200).json({ user: serializeUser(updated) });
   } catch {
     res.status(500).json({ error: "Unable to change password right now" });

@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import request from "supertest";
-import { app } from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
 import { hashPassword } from "../../src/services/password.js";
-import { SEED_PASSWORD, SEEDED, asAdmin, asRequester, asRequesterB, asStaff, loginAs } from "../helpers/auth.js";
+import { api, SEED_PASSWORD, SEEDED, asAdmin, asRequester, asRequesterB, asStaff, loginAs } from "../helpers/auth.js";
 
 // Direct API authorization evidence (docs/lab-03/tests.md SEC-01..SEC-08). Staff and Admin routes
 // are added to the route tables below in Issues 3–5 as they come into existence.
@@ -18,7 +16,7 @@ beforeAll(async () => {
 });
 
 function createTicketAs(cookie: string, summary: string, extraFields: Record<string, string> = {}) {
-  let req = request(app)
+  let req = api()
     .post("/api/tickets")
     .set("Cookie", cookie)
     .field("categoryId", String(categoryId))
@@ -43,10 +41,10 @@ describe("client-supplied requester identity is ignored", () => {
     const ticket = await getPrisma().ticket.findUniqueOrThrow({ where: { id: created.body.id } });
     expect(ticket.requesterId).not.toBe(idB);
 
-    const listB = await request(app).get("/api/tickets").set("Cookie", cookieB).set("X-Requester-Id", String(ticket.requesterId));
+    const listB = await api().get("/api/tickets").set("Cookie", cookieB).set("X-Requester-Id", String(ticket.requesterId));
     expect(listB.body.items.map((t: { id: number }) => t.id)).not.toContain(ticket.id);
 
-    const detailB = await request(app)
+    const detailB = await api()
       .get(`/api/tickets/${created.body.ticketNumber}`)
       .set("Cookie", cookieB)
       .set("X-Requester-Id", String(ticket.requesterId));
@@ -54,16 +52,38 @@ describe("client-supplied requester identity is ignored", () => {
   });
 });
 
-// SEC-05 (BR-14) — Requester-only operations are refused for staff.
+// SEC-05 (BR-14) — every Requester-only route is refused for IT Staff *and* Administrator (an
+// admin-as-superuser bug would otherwise pass). Review on PR #39.
 describe("Requester-only endpoints", () => {
-  it("return 403 FORBIDDEN for IT Staff and Administrator", async () => {
-    for (const cookie of [await asStaff(), await asAdmin()]) {
-      const list = await request(app).get("/api/tickets").set("Cookie", cookie);
-      expect(list.status).toBe(403);
-      expect(list.body.code).toBe("FORBIDDEN");
-      const create = await createTicketAs(cookie, "staff should not create");
-      expect(create.status).toBe(403);
+  it("return 403 FORBIDDEN for IT Staff and Administrator on every route, while shared routes stay open", async () => {
+    const owner = await asRequester();
+    const created = await createTicketAs(owner, `SEC-05 owned ticket ${Date.now()}`);
+    const tn = created.body.ticketNumber as string;
+    const attachment = await api()
+      .post(`/api/tickets/${tn}/attachments`)
+      .set("Cookie", owner)
+      .attach("file", Buffer.from([0x89, 0x50, 0x4e, 0x47]), { filename: "x.png", contentType: "image/png" });
+    const attachmentId = attachment.body.id as number;
+
+    for (const [label, cookie] of [["IT Staff", await asStaff()], ["Administrator", await asAdmin()]] as const) {
+      const attempts = [
+        api().get("/api/tickets").set("Cookie", cookie),
+        createTicketAs(cookie, `${label} should not create`),
+        api().get(`/api/tickets/${tn}`).set("Cookie", cookie),
+        api().post(`/api/tickets/${tn}/attachments`).set("Cookie", cookie).attach("file", Buffer.from([1, 2, 3]), { filename: "y.png", contentType: "image/png" }),
+        api().get(`/api/attachments/${attachmentId}`).set("Cookie", cookie),
+        api().delete(`/api/attachments/${attachmentId}`).set("Cookie", cookie).send({ reason: "should not be allowed" }),
+      ];
+      for (const res of await Promise.all(attempts)) {
+        expect(res.status, label).toBe(403);
+        expect(res.body.code).toBe("FORBIDDEN");
+      }
+      // Explicitly shared routes (api-spec §3.5) keep working for both roles.
+      const download = await api().get(`/api/attachments/${attachmentId}/download`).set("Cookie", cookie);
+      expect(download.status, `${label} download`).toBe(200);
     }
+    const stillActive = await api().get(`/api/attachments/${attachmentId}`).set("Cookie", owner);
+    expect(stillActive.body.removedAt).toBeNull();
   });
 });
 
@@ -79,7 +99,7 @@ describe("unauthenticated access", () => {
     ["GET", "/api/auth/me"],
     ["POST", "/api/auth/change-password"],
   ])("%s %s → 401 UNAUTHENTICATED", async (method, path) => {
-    const res = await request(app)[method.toLowerCase() as "get" | "post" | "delete"](path);
+    const res = await api()[method.toLowerCase() as "get" | "post" | "delete"](path);
     expect(res.status).toBe(401);
     expect(res.body.code).toBe("UNAUTHENTICATED");
   });
@@ -93,13 +113,13 @@ describe("deactivation revokes sessions", () => {
       data: { name: "Revoke Me", email, role: "IT_STAFF", passwordHash: await hashPassword(SEED_PASSWORD), mustChangePassword: false },
     });
     const cookie = await loginAs(email);
-    expect((await request(app).get("/api/auth/me").set("Cookie", cookie)).status).toBe(200);
+    expect((await api().get("/api/auth/me").set("Cookie", cookie)).status).toBe(200);
 
     // Until the Administrator API lands (Issue 5) this is the direct DB effect the API will have.
     await getPrisma().user.update({ where: { id: user.id }, data: { isActive: false } });
     await getPrisma().session.deleteMany({ where: { userId: user.id } });
 
-    const after = await request(app).get("/api/auth/me").set("Cookie", cookie);
+    const after = await api().get("/api/auth/me").set("Cookie", cookie);
     expect(after.status).toBe(401);
   });
 });

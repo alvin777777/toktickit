@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from "react";
-import { AuthUser, getCurrentUser, login as apiLogin, logout as apiLogout } from "../api.js";
+import { AuthUser, UNAUTHENTICATED_EVENT, getCurrentUser, login as apiLogin, logout as apiLogout } from "../api.js";
 
 // Lab 3 Issue 2 — replaces Lab 2's RequesterContext. Nothing about the user is persisted
 // client-side: the httpOnly session cookie is the only credential, and the user object here is
@@ -34,6 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // AC-30 — any 401 from a protected call ends the client session immediately.
+  useEffect(() => {
+    const onUnauthenticated = () => setUser(null);
+    window.addEventListener(UNAUTHENTICATED_EVENT, onUnauthenticated);
+    return () => window.removeEventListener(UNAUTHENTICATED_EVENT, onUnauthenticated);
+  }, []);
 
   async function login(email: string, password: string) {
     const next = await apiLogin(email, password);

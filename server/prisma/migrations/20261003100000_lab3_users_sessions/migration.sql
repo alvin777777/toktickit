@@ -11,23 +11,23 @@ ALTER TABLE "User" RENAME CONSTRAINT "RequesterUser_pkey" TO "User_pkey";
 ALTER INDEX "RequesterUser_email_key" RENAME TO "User_email_key";
 ALTER SEQUENCE "RequesterUser_id_seq" RENAME TO "User_id_seq";
 
--- New columns. passwordHash is added nullable, back-filled, then made NOT NULL.
+-- New columns (BR-46a): added nullable / with a temporary default on the populated table,
+-- back-filled, then made NOT NULL. Nothing is inserted with a default that Prisma does not own.
 ALTER TABLE "User"
   ADD COLUMN "passwordHash" TEXT,
   ADD COLUMN "role" "UserRole" NOT NULL DEFAULT 'REQUESTER',
   ADD COLUMN "mustChangePassword" BOOLEAN NOT NULL DEFAULT true,
-  ADD COLUMN "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+  ADD COLUMN "updatedAt" TIMESTAMP(3);
 
--- BR-46: every migrated Lab 2 requester receives the documented local-lab initial password
--- "Welcome123!" (scrypt, N=16384 r=8 p=1, fixed salt for reproducibility) and must change it at
--- first login (mustChangePassword defaults to true above). isActive is preserved as-is.
-UPDATE "User"
-SET "passwordHash" = 'scrypt$16384$8$1$VG9rVGlja0lUTGFiM01pZw==$XPw4ksT2KxfbrLz2BSi7sKPj751q+TqR+VSuwJYicsmYtdR9+tCl6jLAnC75wcVFLqYcFTTbPiuy9pfcTo2oYA=='
-WHERE "passwordHash" IS NULL;
+-- BR-46: migrated Lab 2 requesters receive a per-row *unprovisioned* credential — a sentinel that
+-- the scrypt verifier can never match — so nobody (including someone who read the docs) can sign
+-- into a migrated account until an Administrator sets an initial password (BR-44). This keeps
+-- BR-04 (unique salt per hash) intact: no shared or precomputed hash is written.
+UPDATE "User" SET "passwordHash" = 'unprovisioned$' || gen_random_uuid()::text WHERE "passwordHash" IS NULL;
+UPDATE "User" SET "updatedAt" = "createdAt" WHERE "updatedAt" IS NULL;
 
 ALTER TABLE "User" ALTER COLUMN "passwordHash" SET NOT NULL;
--- Prisma's @updatedAt is maintained by the client, not a DB default.
-ALTER TABLE "User" ALTER COLUMN "updatedAt" DROP DEFAULT;
+ALTER TABLE "User" ALTER COLUMN "updatedAt" SET NOT NULL;
 
 -- CreateTable
 CREATE TABLE "Session" (

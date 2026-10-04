@@ -77,8 +77,11 @@ cp client/.env.example client/.env
 ```
 
 The defaults already match the Docker command above, so no editing is required for local dev.
-`server/.env` also carries `CLIENT_ORIGIN` (Lab 3) — the browser origin allowed to send the session
-cookie; leave it at `http://localhost:5173` for the Vite dev server.
+`server/.env` also carries `CLIENT_ORIGIN` (Lab 3) — the only browser origin allowed to call the
+API with the session cookie (CORS) **and** the origin every state-changing request must present in
+its `Origin`/`Referer` header (CSRF control, BR-09a). Leave it at `http://localhost:5173` for the
+Vite dev server; when calling the API from curl or scripts, add `-H "Origin: http://localhost:5173"`
+to POST/PATCH/DELETE requests.
 
 ## 4. Set up the database with Prisma
 
@@ -91,8 +94,10 @@ npm run prisma:seed      # idempotent — safe to re-run any time; resets seeded
 ### Seeded accounts (local development only)
 
 All seeded accounts use the password **`Password123!`** except the first-login account, which uses
-the initial password **`Welcome123!`** and must change it at first sign-in (this is also the initial
-password every Lab 2 Requester received from the Lab 3 migration).
+the initial password **`Welcome123!`** and must change it at first sign-in. Accounts that existed
+before Lab 3 and are *not* re-seeded are migrated as **unprovisioned**: nobody can sign into them
+until an Administrator sets an initial password in Users → Edit → Set Initial Password
+(`docs/lab-03/specification.md` BR-46).
 
 | Role | Email | Note |
 |---|---|---|

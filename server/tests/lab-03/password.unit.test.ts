@@ -23,11 +23,11 @@ describe("password hashing", () => {
     expect(await verifyPassword("anything", "bcrypt$10$abc")).toBe(false);
   });
 
-  it("verifies the migration's precomputed Welcome123! hash (BR-46)", async () => {
-    const migrated =
-      "scrypt$16384$8$1$VG9rVGlja0lUTGFiM01pZw==$XPw4ksT2KxfbrLz2BSi7sKPj751q+TqR+VSuwJYicsmYtdR9+tCl6jLAnC75wcVFLqYcFTTbPiuy9pfcTo2oYA==";
-    expect(await verifyPassword("Welcome123!", migrated)).toBe(true);
-    expect(await verifyPassword("welcome123!", migrated)).toBe(false);
+  it("never matches an unprovisioned migration sentinel, whatever is typed (BR-46)", async () => {
+    const sentinel = "unprovisioned$3f1c2b9a-2a4e-4f7d-9d1a-1b2c3d4e5f60";
+    for (const guess of ["", "Welcome123!", sentinel, "3f1c2b9a-2a4e-4f7d-9d1a-1b2c3d4e5f60"]) {
+      expect(await verifyPassword(guess, sentinel)).toBe(false);
+    }
   });
 });
 

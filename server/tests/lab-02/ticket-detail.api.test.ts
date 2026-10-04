@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import request from "supertest";
-import { app } from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
-import { asRequester, asRequesterB } from "../helpers/auth.js";
+import { api, asRequester, asRequesterB } from "../helpers/auth.js";
 
 // Lab 3: the Requester identity now comes from the session cookie (BR-13), not a header.
 let requesterA: string;
@@ -11,7 +9,7 @@ let categoryId: number;
 let relatedSystemId: number;
 
 async function createTicket(cookie: string, summary: string) {
-  const res = await request(app)
+  const res = await api()
     .post("/api/tickets")
     .set("Cookie", cookie)
     .field("categoryId", String(categoryId))
@@ -36,7 +34,7 @@ describe("GET /api/tickets/:ticketNumber", () => {
   it("returns the owned ticket with fields matching what was stored (AC-13)", async () => {
     const created = await createTicket(requesterA, "Ticket detail happy path");
 
-    const res = await request(app)
+    const res = await api()
       .get(`/api/tickets/${created.ticketNumber}`)
       .set("Cookie", requesterA);
 
@@ -50,7 +48,7 @@ describe("GET /api/tickets/:ticketNumber", () => {
   it("returns 404 for a ticket that isn't owned by the current requester (AC-03, BR-22)", async () => {
     const created = await createTicket(requesterA, "Owned by A only");
 
-    const res = await request(app)
+    const res = await api()
       .get(`/api/tickets/${created.ticketNumber}`)
       .set("Cookie", requesterB);
 
@@ -58,7 +56,7 @@ describe("GET /api/tickets/:ticketNumber", () => {
   });
 
   it("returns the identical 404 for a ticket number that doesn't exist at all (BR-22)", async () => {
-    const res = await request(app)
+    const res = await api()
       .get("/api/tickets/TKT-1999-999999")
       .set("Cookie", requesterA);
 

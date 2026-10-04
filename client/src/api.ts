@@ -28,6 +28,18 @@ async function readBody(res: Response) {
   }
 }
 
+// AC-30 — when a session is revoked or expires mid-use, the API answers 401. That is announced once
+// here so AuthProvider can clear the user and RequireAuth can return to Login, instead of every
+// screen showing a generic failure while looking signed in (review on PR #40). Login's own 401
+// (wrong credentials) and the boot-time /me probe are not session loss and stay silent.
+export const UNAUTHENTICATED_EVENT = "toktickit:unauthenticated";
+const SILENT_401 = new Set(["/api/auth/login", "/api/auth/me"]);
+
+export function announceUnauthenticated(path: string) {
+  if (SILENT_401.has(path)) return;
+  window.dispatchEvent(new Event(UNAUTHENTICATED_EVENT));
+}
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
@@ -36,6 +48,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const res = await fetch(`${API_URL}${path}`, { ...init, headers, credentials: "include" });
   if (res.status === 204) return undefined as T;
   const body = await readBody(res);
+  if (res.status === 401) announceUnauthenticated(path.split("?")[0]);
   if (!res.ok) throw new ApiError(res.status, body);
   return body as T;
 }
@@ -300,6 +313,7 @@ export async function removeAttachment(attachmentId: number, reason: string): Pr
 // result as a normal file download link, but the session cookie decides who may fetch it.
 export async function downloadAttachment(attachment: AttachmentInfo): Promise<void> {
   const res = await fetch(`${API_URL}/api/attachments/${attachment.id}/download`, { credentials: "include" });
+  if (res.status === 401) announceUnauthenticated("/api/attachments/download");
   if (!res.ok) throw new Error("Unable to download attachment");
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);

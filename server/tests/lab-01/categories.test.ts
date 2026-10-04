@@ -1,11 +1,10 @@
+import { api } from "../helpers/auth.js";
 import { describe, it, expect } from "vitest";
-import request from "supertest";
-import { app } from "../../src/app.js";
 
 // Issue 4 — requires the DB to be migrated and seeded first (see Issue 3).
 describe("GET /api/categories", () => {
   it("returns the four seeded categories in id order", async () => {
-    const res = await request(app).get("/api/categories");
+    const res = await api().get("/api/categories");
     expect(res.status).toBe(200);
     expect(res.body).toEqual([
       { id: 1, name: "Account and Access" },

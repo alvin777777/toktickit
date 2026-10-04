@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import request from "supertest";
-import { app } from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
-import { asRequester, asRequesterB } from "../helpers/auth.js";
+import { api, asRequester, asRequesterB } from "../helpers/auth.js";
 
 // Lab 3: the Requester identity now comes from the session cookie (BR-13), not a header.
 let requesterA: string;
@@ -11,7 +9,7 @@ let categoryId: number;
 let relatedSystemId: number;
 
 async function createTicket(cookie: string, summary: string, priority = "MEDIUM") {
-  const res = await request(app)
+  const res = await api()
     .post("/api/tickets")
     .set("Cookie", cookie)
     .field("categoryId", String(categoryId))
@@ -37,7 +35,7 @@ describe("GET /api/tickets", () => {
     await createTicket(requesterA, "My Tickets isolation test A");
     await createTicket(requesterB, "My Tickets isolation test B");
 
-    const resA = await request(app).get("/api/tickets").set("Cookie", requesterA);
+    const resA = await api().get("/api/tickets").set("Cookie", requesterA);
     expect(resA.status).toBe(200);
     const summariesA: string[] = resA.body.items.map((t: { summary: string }) => t.summary);
     expect(summariesA).toContain("My Tickets isolation test A");
@@ -50,7 +48,7 @@ describe("GET /api/tickets", () => {
     await createTicket(requesterA, `${unique} second`);
     await createTicket(requesterA, "unrelated ticket, should not match search");
 
-    const res = await request(app)
+    const res = await api()
       .get("/api/tickets")
       .query({ search: unique, page: 1, pageSize: 1 })
       .set("Cookie", requesterA);
@@ -65,7 +63,7 @@ describe("GET /api/tickets", () => {
   });
 
   it("falls back to defaults for invalid page/pageSize (BR-13)", async () => {
-    const res = await request(app)
+    const res = await api()
       .get("/api/tickets")
       .query({ page: "not-a-number", pageSize: "-5" })
       .set("Cookie", requesterA);
@@ -77,7 +75,7 @@ describe("GET /api/tickets", () => {
 
   // Requested by review on PR #26 — parseInt("2abc") used to silently become 2.
   it("falls back to defaults for partially-numeric page/pageSize (BR-13)", async () => {
-    const res = await request(app)
+    const res = await api()
       .get("/api/tickets")
       .query({ page: "2abc", pageSize: "10px" })
       .set("Cookie", requesterA);
@@ -88,7 +86,7 @@ describe("GET /api/tickets", () => {
   });
 
   it("requires an authenticated session (401) and ignores a stray X-Requester-Id (BR-13)", async () => {
-    const res = await request(app).get("/api/tickets").set("X-Requester-Id", "1");
+    const res = await api().get("/api/tickets").set("X-Requester-Id", "1");
     expect(res.status).toBe(401);
   });
 });

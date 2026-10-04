@@ -5,6 +5,18 @@ import { app } from "../../src/app.js";
 // seeded account and return the `Cookie` header value to attach to subsequent requests. Seeded
 // credentials come from prisma/seed.ts (local development only).
 export const SEED_PASSWORD = "Password123!";
+export const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
+
+// BR-09a — every unsafe request must present the client's Origin, so tests go through api()
+// instead of request(app). GETs are untouched; csrf.api.test.ts covers forged/missing origins.
+export function api() {
+  const r = request(app);
+  for (const method of ["post", "put", "patch", "delete"] as const) {
+    const original = r[method].bind(r);
+    (r as unknown as Record<string, unknown>)[method] = (url: string) => original(url).set("Origin", CLIENT_ORIGIN);
+  }
+  return r;
+}
 
 export const SEEDED = {
   requesterA: "jennifer.anderson@toktickit.dev",
@@ -19,7 +31,7 @@ export const SEEDED = {
 };
 
 export async function loginAs(email: string, password = SEED_PASSWORD): Promise<string> {
-  const res = await request(app).post("/api/auth/login").send({ email, password });
+  const res = await api().post("/api/auth/login").send({ email, password });
   if (res.status !== 200) {
     throw new Error(`loginAs(${email}) failed: ${res.status} ${JSON.stringify(res.body)}`);
   }

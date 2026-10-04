@@ -8,6 +8,7 @@ import path from "node:path";
 import { getPrisma } from "./prisma.js";
 import { asRequester, authenticated } from "./middleware/auth.js";
 import { authRouter } from "./routes/auth.js";
+import { csrfOriginCheck } from "./middleware/csrf.js";
 import { generateTicketNumber } from "./services/ticketNumber.js";
 
 // docs/lab-02/specification.md BR-16 — fixed attachment rules.
@@ -43,6 +44,9 @@ export const app = express();
 // origin (api-spec.md §0; CSRF notes in specification.md §8).
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
 app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
+// BR-09a — Origin/Referer allow-list on every unsafe method (CSRF). SameSite + CORS alone would
+// still let a same-site page or a simple form POST ride the cookie.
+app.use(csrfOriginCheck);
 app.use(cookieParser());
 app.use(express.json());
 
