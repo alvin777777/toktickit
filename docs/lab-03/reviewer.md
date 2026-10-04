@@ -13,15 +13,22 @@ each PR still shows exactly its Issue.
 
 | PR | Branch | Scope | Reviewer verdict |
 |----|--------|-------|------------------|
-| [#39](https://github.com/alvin777777/toktickit/pull/39) | feature/11-lab3-spec | Sprint 3 engineering contract | Changes requested (3 × P1, 2 × P2) → all fixed in `26f66f9`, re-review requested |
-| [#40](https://github.com/alvin777777/toktickit/pull/40) | feature/12-auth-foundation | Authentication, sessions, User migration | Changes requested (4 × P1, 1 × P2) → all fixed, re-review requested |
-| [#41](https://github.com/alvin777777/toktickit/pull/41) | feature/13-staff-ticket-queue | Ticket workflow data, Ticket Queue | Changes requested (2 × P1) → all fixed, re-review requested |
-| [#42](https://github.com/alvin777777/toktickit/pull/42) | feature/14-staff-ticket-operations | IT Staff Ticket Detail, comments, notes | Changes requested (2 × P1) → all fixed, re-review requested |
-| [#43](https://github.com/alvin777777/toktickit/pull/43) | feature/15-admin-user-management | Administrator User Management | Changes requested (2 × P1) → all fixed, re-review requested |
-| [#44](https://github.com/alvin777777/toktickit/pull/44) | feature/16-e2e-qa-release | E2E, responsive/visual QA, final docs | **Approved** ("no blocking issues") |
-| — | lab3-staging → main | Lab 3 release | pending (after #39–#44 merge) |
+| [#39](https://github.com/alvin777777/toktickit/pull/39) | feature/11-lab3-spec | Sprint 3 engineering contract | Changes requested (3 × P1, 2 × P2) → all fixed in `26f66f9` → approved ("LGTM!"), merged |
+| [#40](https://github.com/alvin777777/toktickit/pull/40) | feature/12-auth-foundation | Authentication, sessions, User migration | Changes requested (4 × P1, 1 × P2) → all fixed → approved ("LGTM!"), merged |
+| [#41](https://github.com/alvin777777/toktickit/pull/41) | feature/13-staff-ticket-queue | Ticket workflow data, Ticket Queue | Changes requested (2 × P1) → all fixed → approved ("LGTM!"), merged |
+| [#42](https://github.com/alvin777777/toktickit/pull/42) | feature/14-staff-ticket-operations | IT Staff Ticket Detail, comments, notes | Changes requested (2 × P1) → all fixed → approved ("LGTM!"), merged |
+| [#43](https://github.com/alvin777777/toktickit/pull/43) | feature/15-admin-user-management | Administrator User Management | Changes requested (2 × P1) → all fixed → approved ("LGTM!"), merged |
+| [#44](https://github.com/alvin777777/toktickit/pull/44) | feature/16-e2e-qa-release | E2E, responsive/visual QA, final docs | **Approved** ("no blocking issues"), merged |
+| [#45](https://github.com/alvin777777/toktickit/pull/45) | feature/15-admin-user-management → lab3-staging | Integration of the merged stack | merged (see note below) |
+| — | lab3-staging → main | Lab 3 release | see the release PR link in the submission |
 
-(Outcome column to be updated to "approved, merged" as the second round completes.)
+**Integration note.** The second-round merges were done without deleting the base branches, so GitHub
+did not retarget the stacked PRs: #40–#44 each merged into the previous feature branch and only #39
+reached `lab3-staging`. PR #45 brought the merged stack (`feature/15-admin-user-management`) into
+`lab3-staging`, and the reviewed head of #44 (`b261cd0`, whose merge commit had been lost from
+`feature/15` by a later force-push) was merged in directly afterwards (`3b88204`). The content on
+`lab3-staging` is exactly what the partner approved, plus the docs/E2E-helper commit `1a07bac` that
+followed the #44 approval.
 
 ### PR #39 — reviewer comment I received
 > Requesting changes because the engineering contract still contains migration blockers and
@@ -50,7 +57,7 @@ and only two routes — exercise both disallowed roles across every Requester-on
 > covers IT Staff and Administrator across every Requester-only route. Added AC-35/36 and
 > API-35..38 for the concurrency/atomicity findings on #42/#43.
 
-Outcome: fixed, re-review requested.
+Partner's response: "LGTM!" — approved and merged.
 
 ### PR #40 — reviewer comment I received
 > ขอ Request changes ครับ พบประเด็นที่กระทบ security และ acceptance criteria ของ Issue 2: CSRF
@@ -76,7 +83,7 @@ session revocation are separate writes — wrap in one transaction and test the 
 > migration ของ Lab 2 + fixture แล้ว apply SQL ของ Lab 3 จริง; change-password ใช้
 > `$transaction([update, deleteMany])` + `atomicity.api.test.ts` inject ให้ transaction ล้ม
 
-Outcome: fixed, re-review requested.
+Partner's response: "LGTM!" — approved and merged.
 
 ### PR #41 — reviewer comment I received
 > ขอ Request changes ครับ พบ blocker 2 จุดที่ทำให้ queue ใช้งานจริงและข้อมูล seed ไม่ตรงกับ contract:
@@ -93,7 +100,7 @@ seed ticket is owned by Robert Wilson, who is seeded inactive — violates BR-23
 > จริง (รวม test); เปลี่ยน owner เป็น Lisa Martinez และ `seedTickets()` throw ถ้า owner ไม่ใช่ active
 > IT_STAFF/ADMIN
 
-Outcome: fixed, re-review requested.
+Partner's response: "LGTM!" — approved and merged.
 
 ### PR #42 — reviewer comment I received
 > ขอ Request changes ครับ พบ race condition ที่ทำให้กฎแบบ exactly-once/first-wins ของ Issue 4 ไม่ปลอดภัย
@@ -109,7 +116,7 @@ win; **[P1]** `requesterResolvedAt` check and write are separate queries — two
 > NULL` + not terminal) ถ้า `count === 0` ค่อยอ่านซ้ำแล้วตอบ 409 ที่ถูกต้อง; test API-35/API-36 ยิง
 > พร้อมกัน 2 request 3 รอบ ได้ [200, 409] ทุกรอบ
 
-Outcome: fixed, re-review requested.
+Partner's response: "LGTM!" — approved and merged.
 
 ### PR #43 — reviewer comment I received
 > Requesting changes. The admin safeguards need to be made atomic so the invariants continue to
@@ -128,7 +135,7 @@ sessions alive (BR-44).
 > `initial-password` and deactivation revoke sessions inside the same transaction;
 > `atomicity.api.test.ts` injects a failing transaction and checks nothing changed.
 
-Outcome: fixed, re-review requested.
+Partner's response: "LGTM!" — approved and merged.
 
 ### PR #44 — reviewer comment I received
 > Reviewed the changed source, E2E coverage, responsive checks, screenshots, and Lab 3
@@ -136,8 +143,8 @@ Outcome: fixed, re-review requested.
 > correctly reflected in the client test updates, and the added E2E flows exercise the documented
 > authentication, ticket operations, user administration, and responsive-layout requirements.
 
-Outcome: approved. (Rebased on the fixed stack afterwards; the E2E helper now sends the `Origin`
-header required by BR-09a and the docs record the review round.)
+Outcome: approved and merged. (Rebased on the fixed stack afterwards; the E2E helper now sends the
+`Origin` header required by BR-09a and the docs record the review round.)
 
 ## Pull Requests I reviewed for my partner
 

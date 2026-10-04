@@ -185,8 +185,8 @@ cd e2e && npm test       # E2E + responsive screenshots (Playwright; needs both 
 
 ## 7. Final Results
 
-Run on the final Lab 3 branch (feature/16-e2e-qa-release, identical content to the `lab3-staging`
-release) on 2026-10-04, after the peer-review fixes, against a freshly reset and seeded database
+Run on `lab3-staging` (`3b88204`, the content released to `main`) on 2026-10-04, after the
+peer-review fixes were approved and merged, against a freshly reset and seeded database
 (`npx prisma migrate reset`):
 
 ```
