@@ -152,7 +152,7 @@ Partner's repo: https://github.com/Ohmmykung09/toktickit
 
 | PR | Branch/Scope | Outcome |
 |----|--------|------------------|
-| [#61](https://github.com/Ohmmykung09/toktickit/pull/61) | Lab 3: cumulative review for Issues #26–#35 (`lab3-staging` vs `lab2-staging`, 110 files) | Changes requested (3 × P1, 3 × P2, P3 notes) → all fixed in `ae73f56` → approved ("LGTM") |
+| [#61](https://github.com/Ohmmykung09/toktickit/pull/61) | Lab 3: cumulative review for Issues #26–#35 (`lab3-staging` vs `lab2-staging`, 110 files) | Changes requested (3 × P1, 3 × P2, P3 notes) → all fixed in `ae73f56` → approved ("LGTM"), merged by me as reviewer |
 
 ### PR #61 — my review
 Read the whole server diff (auth-service / auth-router / admin-router / staff-router /
@@ -203,5 +203,8 @@ Comments rejected on CLOSED/CANCELLED; name-only edits no longer revoke sessions
 ignored, `lastUsedAt` touched only after auth/CSRF; `User.updatedAt` migration fix + regression
 tests + docs.
 
-My follow-up: verified the diff of `ae73f56` point by point and approved ("LGTM"). I have only
-read access to the partner's repository, so the merge itself is theirs to perform.
+My follow-up: verified the diff of `ae73f56` point by point and approved ("LGTM"), then merged
+the PR as the reviewer once the partner re-sent the collaborator invitation (the earlier one had
+expired).
+
+Outcome: fixed, approved, merged (2026-10-04).
