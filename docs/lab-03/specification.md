@@ -162,7 +162,7 @@ initial password must change it before entering the application.
 | Operation | Requester | IT Staff | Administrator |
 |---|---|---|---|
 | Login, logout, current user, change own password | ✓ | ✓ | ✓ |
-| Categories / Related Systems lookups | ✓ | ✓ | ✓ |
+| Categories / Related Systems lookups (public reference data, as in Lab 1) | ✓ | ✓ | ✓ |
 | Create Ticket; My Tickets; own Ticket Detail; add/remove/download own Attachments | ✓ (own only) | ✗ | ✗ |
 | Read/post Public Comments | ✓ own Tickets | ✓ any | ✓ any |
 | "Problem Appears Resolved" | ✓ own Tickets | ✗ | ✗ |
@@ -342,7 +342,7 @@ Full contract in `docs/lab-03/api-spec.md`. Endpoint summary:
 | POST /api/auth/logout | Revoke session | any |
 | GET /api/auth/me | Current user | authenticated |
 | POST /api/auth/change-password | Change own password (also the first-login change) | authenticated |
-| GET /api/categories, GET /api/related-systems | Lookups | authenticated |
+| GET /api/categories, GET /api/related-systems | Lookups (public reference data) | any |
 | POST /api/tickets, GET /api/tickets, GET /api/tickets/:ticketNumber | Lab 2 Requester APIs (session identity) | Requester |
 | POST /api/tickets/:ticketNumber/attachments, GET/DELETE /api/attachments/:id | Lab 2 attachment APIs | Requester (owner) |
 | GET /api/attachments/:id/download | Download active attachment | Requester (owner), IT Staff, Admin |
@@ -527,8 +527,9 @@ Every AC maps to at least one planned test in `tests.md`.
   changes and session revocation run in one transaction.
 - **Queue counts (FR-13).** `all / unassigned / mine` are the only "analytics" — enough to find work,
   and well inside the "simple queue counts" allowance of §4.2 of the handout.
-- **Lookups require authentication.** `GET /api/categories` and `GET /api/related-systems` now sit
-  behind the session; the Lab 1 health check stays public.
+- **Lookups stay public.** `GET /api/categories` and `GET /api/related-systems` are non-sensitive
+  reference data already public since Lab 1 (the Lab 1 health-check card and its tests depend on
+  it); every Ticket, user, comment, and note endpoint sits behind the session.
 - **Lab 2 tests are migrated, not deleted.** They keep their file names and ACs, authenticate via a
   shared `loginAs()` helper, and serve as the migration/regression suite. The two Lab 2 tests that
   tested the selector itself (UI-02/UI-03/UI-18/UI-17) are replaced by Login/shell tests covering the
