@@ -37,7 +37,12 @@ test ever sends `X-Requester-Id`.
 | SEC-02 | SEC | AC-04, BR-18 | Requester calls GET/POST internal-notes | 403, body has no note content | server/tests/lab-03/authorization.api.test.ts | Planned |
 | SEC-03 | SEC | AC-09, BR-14 | Requester calls every /api/staff/* and /api/admin/* route | 403 FORBIDDEN for each | server/tests/lab-03/authorization.api.test.ts | Planned |
 | SEC-04 | SEC | AC-29, BR-14 | IT Staff calls every /api/admin/* route | 403 FORBIDDEN, no user data | server/tests/lab-03/authorization.api.test.ts | Planned |
-| SEC-05 | SEC | BR-14 | IT Staff calls POST /api/tickets, GET /api/tickets | 403 (Requester-only operations) | server/tests/lab-03/authorization.api.test.ts | Planned |
+| SEC-05 | SEC | BR-14 | IT Staff **and** Administrator call every Requester-only route: POST/GET /api/tickets, GET /api/tickets/:tn, POST /api/tickets/:tn/attachments, GET /api/attachments/:id, DELETE /api/attachments/:id, POST /api/tickets/:tn/requester-resolved | 403 FORBIDDEN for both roles on each; the shared comment and download routes stay 200 | server/tests/lab-03/authorization.api.test.ts | Planned |
+| SEC-09 | SEC | AC-34, BR-09a | Unsafe requests with a valid cookie but (a) forged Origin, (b) foreign Referer and no Origin, (c) no Origin/Referer, on login, logout, create ticket (multipart), claim, requester-resolved, admin PATCH; plus a GET without Origin | 403 CSRF_REJECTED and no state change for a–c; GET unaffected; matching Origin → normal response | server/tests/lab-03/csrf.api.test.ts | Planned |
+| API-35 | API | AC-35, BR-27 | Two IT Staff claim the same unassigned ticket concurrently (Promise.all) | exactly one 200 (owner), one 409 ALREADY_ASSIGNED | server/tests/lab-03/staff-ticket-detail.api.test.ts | Planned |
+| API-36 | API | AC-35, BR-32 | Two concurrent appears-resolved requests by the owner | exactly one 200, one 409 ALREADY_INDICATED | server/tests/lab-03/comments-notes.api.test.ts | Planned |
+| API-37 | API | AC-35, BR-43 | With exactly two active Administrators, both are demoted concurrently | exactly one 200, one 409 LAST_ADMIN; one active Administrator remains | server/tests/lab-03/users-admin.api.test.ts | Planned |
+| API-38 | API | AC-36, BR-07, BR-44, BR-10 | Transaction failure injected into change-password, initial-password, and deactivation | 500; password hash, activation state, and sessions all unchanged | server/tests/lab-03/atomicity.api.test.ts | Planned |
 | SEC-06 | SEC | FR-07, BR-16 | Unauthenticated call to one route of each group | 401 UNAUTHENTICATED for all | server/tests/lab-03/authorization.api.test.ts | Planned |
 | SEC-07 | SEC | AC-30, BR-10 | Admin deactivates a logged-in IT Staff; that user's next request | 401 | server/tests/lab-03/authorization.api.test.ts | Planned |
 | SEC-08 | SEC | BR-15 | Administrator performs claim / status / internal note | 200/201 (explicitly permitted) | server/tests/lab-03/authorization.api.test.ts | Planned |
@@ -66,8 +71,8 @@ test ever sends `X-Requester-Id`.
 | API-32 | API | AC-27, BR-42 | Admin PATCH self isActive=false | 409 SELF_DEACTIVATION, still active | server/tests/lab-03/users-admin.api.test.ts | Planned |
 | API-33 | API | AC-28, BR-43 | With one active admin: another admin (temporarily created then deactivated) scenario — deactivate last admin / change role of last admin | 409 LAST_ADMIN both; with two active admins deactivating one succeeds | server/tests/lab-03/users-admin.api.test.ts | Planned |
 | API-34 | API | BR-45 | DELETE /api/admin/users/:id | 404 (route does not exist) | server/tests/lab-03/users-admin.api.test.ts | Planned |
-| MIG-01 | MIG | AC-31, BR-46, BR-47 | After migrations: every Ticket.requesterId resolves to a User with role REQUESTER; attachment rows intact; itPriority = requestedPriority for pre-Lab-3 tickets; Lab 2 inactive requester still inactive | All assertions hold against the migrated DB | server/tests/lab-03/migration-regression.api.test.ts | Planned |
-| MIG-02 | MIG | AC-31, BR-46 | Migrated requester logs in with `Welcome123!` (simulated via seed row flagged mustChangePassword) | 200 then 403 PASSWORD_CHANGE_REQUIRED on /api/tickets | server/tests/lab-03/migration-regression.api.test.ts | Planned |
+| MIG-01 | MIG | AC-31, BR-46, BR-46a, BR-47 | Builds a scratch database from the three Lab 2 migrations, inserts Lab 2 fixtures (active + inactive requesters, tickets, attachments), then applies the real Lab 3 migration SQL files | Same user ids/emails/isActive; Ticket FK now references User; attachments intact; itPriority = requestedPriority; updatedAt populated; passwordHash is an `unprovisioned$…` sentinel unique per row; mustChangePassword true | server/tests/lab-03/migration-regression.api.test.ts | Planned |
+| MIG-02 | MIG | AC-31, BR-46 | A migrated (unprovisioned) user tries to log in with any password; Administrator provisions an initial password; user logs in | 401 before provisioning (no takeover possible); 200 after, then 403 PASSWORD_CHANGE_REQUIRED until changed | server/tests/lab-03/migration-regression.api.test.ts | Planned |
 | MIG-03 | MIG | FR-08 | GET /api/requesters; any route with only X-Requester-Id | 404; 401 | server/tests/lab-03/migration-regression.api.test.ts | Planned |
 | MIG-04 | MIG | §7 seed | Run seed twice | Same user/ticket counts, no duplicates | server/tests/lab-03/migration-regression.api.test.ts | Planned |
 | UI-01 | UI | AC-01, FR-01 | Login submits email/password, navigates to role home per role | login called; Requester → /tickets, IT Staff → /staff/queue, Admin → /admin/users | client/tests/lab-03/Login.test.tsx | Planned |
@@ -79,6 +84,7 @@ test ever sends `X-Requester-Id`.
 | UI-07 | UI | FR-06, AC-07 | Shell shows name + role badge + role-specific nav; Logout calls API and returns to /login | Requester sees My Tickets/Create Ticket only; IT Staff sees Ticket Queue only; Admin sees Queue + Users | client/tests/lab-03/AppShell.test.tsx | Planned |
 | UI-08 | UI | AC-09 | Requester opens /staff/queue and /admin/users | Forbidden card, no API data rendered | client/tests/lab-03/RequireAuth.test.tsx | Planned |
 | UI-09 | UI | AC-07, FR-03 | Unauthenticated user opens /tickets; /me 401 | Redirect to /login | client/tests/lab-03/RequireAuth.test.tsx | Planned |
+| UI-22 | UI | AC-30 | A 401 arriving mid-session (apiFetch and the attachment download) clears the auth context and returns to Login | Login screen shown; no stale page remains | client/tests/lab-03/SessionExpiry.test.tsx | Planned |
 | UI-10 | UI | AC-13 | Queue renders rows with all columns, badges, counts chips | Columns/badges/chips present | client/tests/lab-03/StaffTicketQueue.test.tsx | Planned |
 | UI-11 | UI | AC-14 | Search, status filter, owner chip "Mine", sort toggle, Next page | API called with matching query each time; stale-response guard | client/tests/lab-03/StaffTicketQueue.test.tsx | Planned |
 | UI-12 | UI | §1.5 | Queue empty / no-results / failure states | Correct state + Clear Filters / Retry | client/tests/lab-03/StaffTicketQueue.test.tsx | Planned |
@@ -155,10 +161,13 @@ replaced as noted.
 | AC-27 | API-32, UI-20, E2E-05 |
 | AC-28 | API-33, UI-20 |
 | AC-29 | SEC-04, UI-21 |
-| AC-30 | SEC-07 |
+| AC-30 | SEC-07, UI-22 |
 | AC-31 | MIG-01, MIG-02 |
 | AC-32 | RESP-01 |
 | AC-33 | UI-02, UI-12, UI-21 |
+| AC-34 | SEC-09 |
+| AC-35 | API-35, API-36, API-37 |
+| AC-36 | API-38 |
 
 ## 5. Responsive and Visual Checklist
 

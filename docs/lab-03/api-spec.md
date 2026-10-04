@@ -22,12 +22,15 @@ user's resource exists.
 | 200 / 201 / 204 | Success (201 for created rows, 204 for logout) |
 | 400 | Validation failure — `fields` names each invalid field |
 | 401 | No valid session (`UNAUTHENTICATED`) — cookie cleared |
-| 403 | Authenticated but not permitted (`FORBIDDEN`), `PASSWORD_CHANGE_REQUIRED`, or `ACCOUNT_INACTIVE` at login |
+| 403 | Authenticated but not permitted (`FORBIDDEN`), `PASSWORD_CHANGE_REQUIRED`, `ACCOUNT_INACTIVE` at login, or `CSRF_REJECTED` (unsafe method without an allowed `Origin`/`Referer`) |
 | 404 | Not found, or Requester-scoped resource not owned (never distinguished — BR-17) |
 | 409 | Conflict — `EMAIL_TAKEN`, `ALREADY_ASSIGNED`, `INVALID_TRANSITION`, `OWNER_REQUIRED`, `TICKET_TERMINAL`, `TICKET_NOT_COMMENTABLE`, `ALREADY_INDICATED`, `SELF_DEACTIVATION`, `LAST_ADMIN` |
 | 500 | Unexpected failure, safe generic message |
 
 ### Common guards (applied in this order on every protected route)
+0. **CSRF origin check** (all unsafe methods, every route — BR-09a) — `Origin`, or `Referer` when
+   `Origin` is absent, must match `CLIENT_ORIGIN` → else 403
+   `{ "error": "Request origin not allowed", "code": "CSRF_REJECTED" }`.
 1. **requireAuth** — valid, unexpired session whose user is active → else 401 and cookie cleared.
 2. **password-change gate** — `mustChangePassword` users may only call §1.2, §1.3, §1.4 → else 403
    `PASSWORD_CHANGE_REQUIRED`.
@@ -69,7 +72,7 @@ Allowed while `mustChangePassword` is true (the client uses it to decide where t
 ### 1.4 POST /api/auth/change-password
 Body: `{ "currentPassword": "…", "newPassword": "…", "confirmPassword": "…" }`
 - **200 OK** → `{ "user": <User> }` (`mustChangePassword` now `false`); all *other* sessions of the
-  user are deleted (BR-07)
+  user are deleted in the same transaction as the password update (BR-07, AC-36)
 - **400** `fields` may contain `currentPassword` ("Current password is incorrect." / "…required."),
   `newPassword` (BR-05 rule text, or "New password must differ from the current password."),
   `confirmPassword` ("Passwords do not match.")
@@ -126,7 +129,8 @@ No body. Requester, own Ticket only.
 - **200 OK** → Ticket detail (§3.3 shape) with `requesterResolvedAt` set; status unchanged (BR-32)
 - **404** not found / not owned
 - **409** `{ "code": "ALREADY_INDICATED" }` or `{ "code": "TICKET_TERMINAL" }` (status already
-  RESOLVED/CLOSED/CANCELLED)
+  RESOLVED/CLOSED/CANCELLED). Exactly-once is enforced by a conditional update on
+  `requesterResolvedAt IS NULL` (AC-35).
 
 ---
 
@@ -187,14 +191,14 @@ order of BR-25.
 ### 4.4 POST /api/staff/tickets/:ticketNumber/claim
 No body. Sets `owner = caller`; `NEW → OPEN` (BR-26).
 - **200 OK** → detail (§4.3 shape)
-- **409** `{ "code": "ALREADY_ASSIGNED", "error": "This ticket is already owned by Emily Davis." }` (BR-27)
+- **409** `{ "code": "ALREADY_ASSIGNED", "error": "This ticket is already owned by Emily Davis." }` (BR-27) — decided by a conditional update on `ownerId IS NULL`, so two simultaneous claims yield exactly one 200 (AC-35)
 - **409** `{ "code": "TICKET_TERMINAL" }` (BR-28) · **404**
 
 ### 4.5 PATCH /api/staff/tickets/:ticketNumber/owner
 Body: `{ "ownerId": 7 }` or `{ "ownerId": null }` (unassign).
 - **200 OK** → detail. `NEW → OPEN` when assigning (BR-26).
 - **400** `{ "fields": { "ownerId": "Select an active IT Staff or Administrator." } }` (BR-23)
-- **409** `TICKET_TERMINAL` · **409** `OWNER_REQUIRED` when unassigning a `RESOLVED` Ticket (BR-29) · **404**
+- **409** `TICKET_TERMINAL` · **409** `OWNER_REQUIRED` when unassigning a `RESOLVED` Ticket (BR-29 invariant: a resolved Ticket always keeps an owner) · **404**
 
 ### 4.6 PATCH /api/staff/tickets/:ticketNumber/it-priority
 Body: `{ "itPriority": "LOW" | "MEDIUM" | "HIGH" }`
@@ -242,7 +246,10 @@ Body: `{ "name", "email", "role", "isActive": true, "initialPassword" }`
 
 ### 5.3 PATCH /api/admin/users/:id
 Body: any subset of `{ "name", "email", "role", "isActive" }`.
-- **200 OK** → user. If `isActive` becomes false, the user's sessions are deleted (BR-10).
+- **200 OK** → user. If `isActive` becomes false, the user's sessions are deleted in the same
+  transaction (BR-10, AC-36). The `LAST_ADMIN` decision locks the active Administrator rows
+  (`SELECT … FOR UPDATE`) inside that transaction, so concurrent demotions cannot leave zero
+  active Administrators (AC-35).
 - **400** `fields` as above (also when the body contains none of the four fields)
 - **404** `{ "error": "User not found" }`
 - **409** `EMAIL_TAKEN` · **409** `{ "code": "SELF_DEACTIVATION", "error": "You cannot deactivate your own account." }`
@@ -251,7 +258,8 @@ Body: any subset of `{ "name", "email", "role", "isActive" }`.
 
 ### 5.4 POST /api/admin/users/:id/initial-password
 Body: `{ "initialPassword": "…" }` (BR-05).
-- **200 OK** → user (`mustChangePassword: true`); the user's sessions are deleted (BR-44)
+- **200 OK** → user (`mustChangePassword: true`); the user's sessions are deleted in the same
+  transaction as the password update (BR-44, AC-36)
 - **400** `fields.initialPassword` · **404**
 
 ---

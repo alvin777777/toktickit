@@ -139,6 +139,14 @@ initial password must change it before entering the application.
   unauthenticated (401) and the cookie is cleared.
 - **BR-09** Logout deletes the session row, so a replayed cookie is rejected afterwards. Logout
   always succeeds (204), even without a valid session.
+- **BR-09a (CSRF)** `SameSite=Lax` and CORS are *not* the CSRF control: SameSite is site-scoped
+  (another port or sibling subdomain is same-site) and CORS never blocks simple form or `no-cors`
+  POSTs. Therefore every unsafe request (`POST`, `PATCH`, `PUT`, `DELETE`) must carry an `Origin`
+  header — or, if absent, a `Referer` — whose origin equals the configured `CLIENT_ORIGIN`; any other
+  value, and a missing header, is rejected with 403 `CSRF_REJECTED` before authentication runs.
+  Browsers always send `Origin` on cross-origin and on same-origin `fetch`/form POSTs, so legitimate
+  clients are unaffected; non-browser clients (tests, curl) must set it explicitly. The control is
+  tested with forged-origin, foreign-referer, and missing-header requests (SEC-09).
 - **BR-10** When a user is deactivated, or an Administrator sets a new initial password for them,
   all of that user's sessions are deleted immediately; their next request is a 401.
 - **BR-11** Login-attempt lockout, rate limiting, and account unlocking are out of scope (§3); the
@@ -195,7 +203,9 @@ initial password must change it before entering the application.
   different owner the claim is rejected (409 `ALREADY_ASSIGNED`) and the UI offers Reassign instead.
 - **BR-28** Ownership, IT Priority, and status cannot be changed on a `CLOSED` or `CANCELLED` Ticket
   except the `CLOSED → REOPENED` transition (409 `TICKET_TERMINAL` otherwise).
-- **BR-29** A Ticket cannot enter `RESOLVED` without a Ticket Owner (409 `OWNER_REQUIRED`).
+- **BR-29** Invariant: a `RESOLVED` Ticket always has a Ticket Owner. A Ticket cannot enter
+  `RESOLVED` without an owner, and an owner cannot be removed from a Ticket while it is `RESOLVED`
+  (409 `OWNER_REQUIRED` in both cases).
 - **BR-30** Permitted status transitions (IT Staff / Administrator only; any other request is
   409 `INVALID_TRANSITION` listing the permitted targets):
 
@@ -250,9 +260,17 @@ initial password must change it before entering the application.
 ### Migration and regression
 - **BR-46** `RequesterUser` becomes `User` by renaming the table in place (no row copy), so every
   `Ticket.requesterId` keeps pointing at the same ids. Migrated users get `role = REQUESTER`,
-  `mustChangePassword = true`, and the documented local-lab initial password `Welcome123!`
-  (hash precomputed in the migration), so they are forced to choose their own password at first
-  login. `isActive` is preserved.
+  `mustChangePassword = true`, and a **per-row unusable credential**: `passwordHash` is set to a
+  sentinel of the form `unprovisioned$<random uuid>` that the password verifier can never match
+  (it is not an scrypt hash), so no migrated account can be signed into — by anyone — until an
+  Administrator provisions an initial password through User Management (BR-44). No shared or
+  documented password exists for migrated accounts, which keeps BR-04 (unique salt per stored hash)
+  and UNIT-01 intact. `isActive` is preserved.
+- **BR-46a** The migration adds new `NOT NULL` columns safely on a populated table: each is added
+  nullable or with a temporary default, back-filled (`updatedAt` from `createdAt`, `passwordHash`
+  per BR-46, `itPriority` from `requestedPriority`), then switched to `NOT NULL` and the temporary
+  default dropped. The migration test (MIG-01) builds a Lab 2 schema with fixture rows and applies
+  the real Lab 3 migration SQL to it.
 - **BR-47** Existing Tickets get `itPriority` back-filled from `requestedPriority` and
   `ownerId = NULL`; existing `NEW` statuses are preserved; Attachments are untouched.
 - **BR-48** Every Lab 2 Acceptance Criterion remains covered by a test that now authenticates via
@@ -345,10 +363,10 @@ Full contract in `docs/lab-03/api-spec.md`. Endpoint summary:
 
 Authentication mechanism: session cookie (BR-08). The client sends every request with
 `credentials: "include"`; the server allows exactly the configured client origin with credentials
-(CORS). CSRF is mitigated by `SameSite=Lax` cookies plus the CORS origin allow-list (cross-site
-`fetch` from another origin cannot carry the cookie, and plain HTML form posts from another site
-do not carry a Lax cookie on POST). Secrets (session tokens) live only in the httpOnly cookie and as
-hashes in the DB; nothing is committed to source control.
+(CORS). CSRF control (BR-09a): every unsafe method must present an `Origin` (or `Referer`) equal to
+`CLIENT_ORIGIN`, checked before authentication; `SameSite=Lax` and CORS are defence in depth only.
+Secrets (session tokens) live only in the httpOnly cookie and as hashes in the DB; nothing is
+committed to source control.
 
 ## 9. Acceptance Criteria
 
@@ -422,10 +440,20 @@ hashes in the DB; nothing is committed to source control.
   returned with no user data.
 - **AC-30** Given a user deactivated while logged in, when they make their next request, then it is
   rejected with 401 and the UI returns to Login.
-- **AC-31** Given the Lab 2 database (RequesterUsers, Tickets, Attachments), when the Lab 3
+- **AC-31** Given a Lab 2 database (RequesterUsers, Tickets, Attachments), when the Lab 3
   migrations run, then every Ticket still belongs to the same Requester (now a User with role
-  `REQUESTER`), attachments are intact, `itPriority` equals `requestedPriority`, and each migrated
-  user can log in with the documented initial password and is forced to change it.
+  `REQUESTER`), attachments are intact, `itPriority` equals `requestedPriority`, `updatedAt` is
+  populated, no migrated account can be signed into until an Administrator sets an initial
+  password, and once provisioned the user is forced to change it at first login.
+- **AC-34** Given a state-changing request whose `Origin`/`Referer` is missing or not
+  `CLIENT_ORIGIN`, when it reaches the API with a valid session cookie, then it is rejected with
+  403 `CSRF_REJECTED` and nothing changes.
+- **AC-35** Given two concurrent Claim requests for the same unassigned Ticket, two concurrent
+  "appears resolved" requests, or two concurrent demotions of the two remaining Administrators,
+  when they race, then exactly one succeeds and the other receives the documented 409.
+- **AC-36** Given a password change, an Administrator initial-password reset, or a deactivation,
+  when any part of the operation fails, then neither the credential/activation change nor the
+  session revocation is applied (atomic).
 - **AC-32** Given the viewport is narrower than 768px, when Login, Change Password, Ticket Queue, IT
   Staff Ticket Detail, or User Management is viewed, then no horizontal page scrolling occurs and all
   controls remain reachable and legible; tablet widths show two columns where desktop has three.
@@ -484,9 +512,19 @@ Every AC maps to at least one planned test in `tests.md`.
   Staff's hands (handout BR-05) while giving them the signal in the queue and detail.
 - **Initial passwords are typed by the Administrator (BR-44).** No email delivery exists in Lab 3;
   the API never echoes a password back after saving.
-- **Migrated users get `Welcome123!` (BR-46).** Documented local-lab value, hash embedded in the
-  migration, forced change at first login — so no migrated account is usable without the person
-  choosing their own password.
+- **Migrated users are unprovisioned, not pre-passworded (BR-46).** A shared documented initial
+  password would let anyone who read the docs take over a migrated account before its owner signed
+  in, and a single precomputed hash contradicts the per-hash salt rule. A per-row random sentinel
+  that the verifier can never match closes both gaps; an Administrator provisions each account
+  through the existing initial-password flow, which already forces a change at first login.
+- **Origin check over CSRF tokens (BR-09a).** The API is called only by our own SPA with
+  credentialed `fetch`, so an `Origin`/`Referer` allow-list gives the same guarantee as a token
+  without adding token plumbing to every form; it is applied globally to unsafe methods so no
+  endpoint (logout, claim, appears-resolved, multipart uploads) can be forgotten.
+- **Concurrency.** First-wins/exactly-once rules (claim, appears-resolved) use conditional
+  `updateMany` on the guarding column; invariants that span rows (last active Administrator) use a
+  transaction that locks the relevant rows (`SELECT … FOR UPDATE`) before deciding; credential
+  changes and session revocation run in one transaction.
 - **Queue counts (FR-13).** `all / unassigned / mine` are the only "analytics" — enough to find work,
   and well inside the "simple queue counts" allowance of §4.2 of the handout.
 - **Lookups require authentication.** `GET /api/categories` and `GET /api/related-systems` now sit
