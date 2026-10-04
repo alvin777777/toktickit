@@ -4,8 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { getPrisma } from "../../src/prisma.js";
-import { hashPassword } from "../../src/services/password.js";
-import { api, SEEDED, loginAs } from "../helpers/auth.js";
+import { api, SEEDED, asAdmin, loginAs } from "../helpers/auth.js";
 
 // MIG-01 (AC-31, BR-46, BR-46a, BR-47) — builds a *Lab 2* database from the three Lab 2 migrations,
 // inserts Lab 2 fixtures, then applies the real Lab 3 migration SQL files to it and inspects the
@@ -153,9 +152,10 @@ describe("provisioning a migrated account", () => {
       expect(res.headers["set-cookie"]).toBeUndefined();
     }
 
-    // Provisioning = what the Administrator's "Set Initial Password" does (Issue 5 switches this
-    // to the real POST /api/admin/users/:id/initial-password once that route exists).
-    await getPrisma().user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword("Provision123"), mustChangePassword: true } });
+    // Provisioning through the real Administrator API (BR-44).
+    const admin = await asAdmin();
+    const provision = await api().post(`/api/admin/users/${user.id}/initial-password`).set("Cookie", admin).send({ initialPassword: "Provision123" });
+    expect(provision.status).toBe(200);
 
     const cookie = await loginAs(email, "Provision123");
     const blocked = await api().get("/api/tickets").set("Cookie", cookie);

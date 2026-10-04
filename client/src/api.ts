@@ -467,3 +467,41 @@ export async function getInternalNotes(ticketNumber: string): Promise<Entry[]> {
 export async function postInternalNote(ticketNumber: string, body: string): Promise<Entry> {
   return apiFetch<Entry>(staffPath(ticketNumber, "/internal-notes"), { method: "POST", body: JSON.stringify({ body }) });
 }
+
+// -----------------------------------------------------------------------------
+// Lab 3 Issue 5 — Administrator user management (api-spec.md §5)
+// -----------------------------------------------------------------------------
+export interface AdminUser {
+  id: number;
+  name: string;
+  email: string;
+  role: Role;
+  isActive: boolean;
+  mustChangePassword: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function getUsers(query: { search?: string; role?: string } = {}): Promise<AdminUser[]> {
+  return apiFetch<AdminUser[]>(`/api/admin/users?${toQueryString(query)}`);
+}
+
+export interface CreateUserInput {
+  name: string;
+  email: string;
+  role: Role;
+  isActive: boolean;
+  initialPassword: string;
+}
+
+export async function createUser(input: CreateUserInput): Promise<AdminUser> {
+  return apiFetch<AdminUser>("/api/admin/users", { method: "POST", body: JSON.stringify(input) });
+}
+
+export async function updateUser(id: number, input: Partial<Pick<AdminUser, "name" | "email" | "role" | "isActive">>): Promise<AdminUser> {
+  return apiFetch<AdminUser>(`/api/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+}
+
+export async function setInitialPassword(id: number, initialPassword: string): Promise<AdminUser> {
+  return apiFetch<AdminUser>(`/api/admin/users/${id}/initial-password`, { method: "POST", body: JSON.stringify({ initialPassword }) });
+}
