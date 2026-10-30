@@ -107,7 +107,9 @@ Tabs become: **Actions Taken (n)** · Public Comments · Internal Notes · Attac
 `?tab=actions|comments|notes|attachments|history` selects a tab from a link.
 
 ### 5.1 View mode (list)
-- Desktop/tablet (≥ md): table — Date/Time · Action · Result · Performed by · Status · (Edit).
+- Desktop/tablet (≥ md): table-like grid rows under a header row — Date/Time · Action · Result ·
+  Performed by · Status · (Edit). (One DOM structure for every width, so nothing is duplicated for
+  screen readers; the header row is `aria-hidden` and each cell carries its own label below md.)
   Description and Result wrap (no truncation); Follow-up badge + note and Attachment Notes
   ("📎 <text>") render under the description.
 - Mobile (< md): one card per action with the same fields stacked; Edit button full-width.
@@ -180,8 +182,8 @@ Public Comments) with the same list in view mode only — no Add / Edit controls
 
 | Viewport | Dashboards | Actions Taken |
 |---|---|---|
-| Desktop ≥ 992 px | metric cards in one row (Requester 4, Staff 8 in a 4×2 grid at 992–1199, 8×1 ≥ 1200); lists 8/12 + side column 4/12 | table |
-| Tablet 768–991 px | 2 cards per row; lists full width, side column below | table; form fields 2 per row |
+| Desktop ≥ 992 px | Requester: 4 cards in one row. Staff: 9 cards, 3 per row at 768–1199, 5 per row ≥ 1200; lists 8/12 + side column 4/12 | grid rows |
+| Tablet 768–991 px | Requester 2 per row; Staff 3 per row; lists full width, side column below | grid rows; form fields 2 per row |
 | Mobile < 768 px | 2 cards per row (values stay legible at 390 px), lists stacked, Quick Actions full-width buttons | cards; form fields stacked; full-width buttons |
 
 No horizontal page scrolling at any width (automated check in `e2e/lab-04/responsive.spec.ts`).
@@ -203,15 +205,22 @@ Long summaries truncate with an ellipsis inside list rows only; descriptions and
 
 ## 11. Visual and Accessibility Checklist (completed in Issue 6)
 
-To be completed against `artifacts/lab-04/screenshots/` (desktop 1280, tablet 820, mobile 390):
+Completed against the 18 screenshots in `artifacts/lab-04/screenshots/` produced by
+`e2e/lab-04/responsive.spec.ts` on a freshly migrated and seeded database (desktop 1280 px,
+tablet 820 px, mobile 390 px), plus that spec's automated assertions (no horizontal overflow on
+every screen; card grid columns per width) and `e2e/lab-04/dashboards.spec.ts` (keyboard).
+Each item was checked by eye on the screenshots, not only by the assertions.
 
-- [ ] Zen Green consistency: header, cards, buttons, badges match Lab 3 on both dashboards and Actions Taken
-- [ ] Dashboard cards: label, value, drill-down visible; 0 values shown; keyboard focus ring visible
-- [ ] Actions Taken list readable at every width (table ≥ md, cards < md); no clipped text
-- [ ] Editable vs read-only: final actions show text only; form inputs white; ticket info ivory
-- [ ] Validation messages under their fields in the action form at mobile width
-- [ ] Keyboard: Tab reaches every card, list link, tab, form control, and status button in visual order
-- [ ] No clipping or overlap of controls at any breakpoint (8-card grid, Operations card, action form)
-- [ ] No horizontal overflow at desktop / tablet / mobile on every Lab 4 screen (automated)
-- [ ] Status / priority / action-status / follow-up shown with text, not colour alone
-- [ ] Old UI removed: no leftover Lab 2 selector, placeholder text, or dead links
+- [x] Zen Green consistency — same `#006B3C` header, white cards with the `#DDE5E0` border, green primary buttons, shared status / priority / role badges on both dashboards, Actions Taken, and History (`staff-dashboard/*`, `requester-dashboard/*`, `actions-taken/*`)
+- [x] Dashboard cards — label, value, and "View" link on every card; zero shown as "0" (Appears Resolved = 0 on the seeded data, Requester "Waiting for Me" = 0 for Michael Brown); every card is one link whose accessible name carries label + value + destination
+- [x] Actions Taken readable at every width — grid rows with a header at ≥ md, stacked labelled cards below; descriptions, results, follow-up notes, attachment notes wrap without truncation (`actions-taken/{desktop,tablet,mobile}.png`)
+- [x] Editable vs read-only — ticket information stays ivory, form inputs white; Completed / Cancelled actions render text only with no Edit button; the Requester view has no buttons at all (`actions-taken/requester-*.png`)
+- [x] Validation placement — description / result / follow-up note messages directly under their fields, red border + icon, at mobile width (`actions-taken/form-mobile.png`); the first invalid field receives focus
+- [x] Keyboard — Tab reaches metric cards with a visible focus ring and Enter opens the drill-down (A11Y-01); the action form is reached in visual order: Date/Time → Status → Performed by → Description → Result → Follow-Up Required? (A11Y-01)
+- [x] No clipping or overlap — 9-card staff grid wraps 2 / 3 / 5 per row; the Operations card's resolve checklist wraps; the action form's buttons wrap on mobile
+- [x] No horizontal overflow — automated `scrollWidth <= clientWidth` passes for Requester Dashboard, Staff Dashboard, Admin Dashboard, Actions Taken list, action form, History, and Requester Actions Taken at all three widths
+- [x] Non-colour cues — status, action status, and follow-up are text badges; the checklist pairs ✓/✗ with "(done)" / "(missing)"; the active nav link has an underline plus `aria-current="page"`
+- [x] Old UI removed — no Lab 2 selector, placeholder text, or dead links; the brand now links to the Dashboard; the boot-time session probe no longer logs a failed 401 request on the sign-in page (HARD-01)
+
+Finding fixed during this pass: the dashboard's "My Open Actions" card first used a router link for
+its in-page target, which navigates without scrolling; it is now a plain `#my-open-actions` anchor.

@@ -257,3 +257,21 @@ describe("requester 'appears resolved' indication", () => {
     expect(list.body.items.map((t: { ticketNumber: string }) => t.ticketNumber)).toEqual([tn]);
   });
 });
+
+// HARD-01 (FR-18) — the client's boot probe never answers 401, so no failed request is logged.
+describe("GET /api/auth/session", () => {
+  it("is 200 with user null when signed out (and for a dead cookie), 200 with the user when signed in", async () => {
+    const { default: request } = await import("supertest");
+    const { app } = await import("../../src/app.js");
+    const anon = await request(app).get("/api/auth/session");
+    expect(anon.status).toBe(200);
+    expect(anon.body).toEqual({ user: null });
+    const dead = await request(app).get("/api/auth/session").set("Cookie", "toktickit_session=not-a-real-token");
+    expect(dead.body).toEqual({ user: null });
+    expect(String(dead.headers["set-cookie"] ?? "")).toContain("toktickit_session=;");
+    const signedIn = await api().get("/api/auth/session").set("Cookie", staff);
+    expect(signedIn.body.user).toMatchObject({ email: SEEDED.staffA, role: "IT_STAFF" });
+    expect(signedIn.body.user).not.toHaveProperty("passwordHash");
+    expect((await request(app).get("/api/auth/me")).status).toBe(401); // Lab 3 contract unchanged
+  });
+});

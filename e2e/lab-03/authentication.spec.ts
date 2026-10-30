@@ -15,7 +15,7 @@ test.describe("Authentication", () => {
     const shellUser = page.getByTestId("current-user");
     await expect(shellUser).toContainText("Jennifer Anderson");
     await expect(shellUser).toContainText("Requester");
-    await expect(page.getByRole("link", { name: "My Tickets" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "My Tickets", exact: true })).toBeVisible(); // exact: the dashboard also has "View My Tickets"
     await expect(page.getByRole("link", { name: "Ticket Queue" })).toHaveCount(0);
 
     await page.getByRole("button", { name: /logout/i }).click();
@@ -42,7 +42,7 @@ test.describe("Authentication", () => {
     // Normal screens stay unavailable while the change is pending (AC-02).
     await page.goto("/tickets");
     await expect(page).toHaveURL(/\/change-password$/);
-    await expect(page.getByRole("link", { name: "My Tickets" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "My Tickets", exact: true })).toHaveCount(0);
 
     await page.getByLabel(/current \(initial\) password/i).fill("Welcome123!");
     await page.getByLabel(/^new password/i).fill("weak");
@@ -53,9 +53,9 @@ test.describe("Authentication", () => {
     await page.getByLabel(/^new password/i).fill("Stronger123");
     await page.getByLabel(/confirm new password/i).fill("Stronger123");
     await page.getByRole("button", { name: /continue/i }).click();
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/); // every role's home since Lab 4 (BR-38)
     await openNav(page);
-    await expect(page.getByRole("link", { name: "My Tickets" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "My Tickets", exact: true })).toBeVisible();
 
     // The new password works and the old initial one no longer does.
     await page.getByRole("button", { name: /logout/i }).click();

@@ -40,7 +40,7 @@ async function readBody(res: Response) {
 // screen showing a generic failure while looking signed in (review on PR #40). Login's own 401
 // (wrong credentials) and the boot-time /me probe are not session loss and stay silent.
 export const UNAUTHENTICATED_EVENT = "toktickit:unauthenticated";
-const SILENT_401 = new Set(["/api/auth/login", "/api/auth/me"]);
+const SILENT_401 = new Set(["/api/auth/login", "/api/auth/me", "/api/auth/session"]);
 
 export function announceUnauthenticated(path: string) {
   if (SILENT_401.has(path)) return;
@@ -107,15 +107,12 @@ export async function logout(): Promise<void> {
   await apiFetch<void>("/api/auth/logout", { method: "POST" });
 }
 
-// Returns null (instead of throwing) when there is no session, so the app can boot quietly.
+// Returns null when there is no session, so the app can boot quietly. Lab 4: uses
+// GET /api/auth/session, which answers 200 { user: null } instead of a 401, so the sign-in page
+// no longer leaves a failed request in the browser console (docs/lab-04/specification.md FR-18).
 export async function getCurrentUser(): Promise<AuthUser | null> {
-  try {
-    const body = await apiFetch<{ user: AuthUser }>("/api/auth/me");
-    return body.user;
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 401) return null;
-    throw err;
-  }
+  const body = await apiFetch<{ user: AuthUser | null }>("/api/auth/session");
+  return body.user;
 }
 
 export async function changePassword(input: {

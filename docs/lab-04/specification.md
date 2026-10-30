@@ -107,7 +107,8 @@ work when two people edit the same thing.
   be set (on create or edit) to another **active** `IT_STAFF` or `ADMIN` user; an inactive, unknown,
   or Requester user is rejected (400, `fields.performedById`). *Recorded by* (`createdById`) is always
   the authenticated creator and is never changed.
-- **BR-04** *Action Date/Time* is required. It may not be earlier than the Ticket's creation time.
+- **BR-04** *Action Date/Time* is required. It may not be earlier than the Ticket's creation time
+  (compared to the minute, because the date-time control has minute precision).
   For `IN_PROGRESS` and `COMPLETED` it may not be more than 5 minutes in the future (clock-skew
   allowance); a `PLANNED` action may be up to 90 days in the future. Stored in UTC.
 - **BR-05** *Action Description* is required, trimmed, 5–1000 characters. *Result* is optional
@@ -343,6 +344,7 @@ Full contract in `docs/lab-04/api-spec.md`. New or changed endpoints:
 | GET /api/dashboard/requester | Requester metrics + lists | Requester |
 | GET /api/dashboard/staff | IT Staff metrics + lists (+ `userCounts` for Admin) | IT Staff, Admin |
 | GET /api/tickets, GET /api/staff/tickets | + `statusGroup=active`; queue + `appearsResolved=true` | as Lab 3 |
+| GET /api/auth/session | Boot-time session probe: 200 with `user` or `null`, never 401 (FR-18) | public |
 
 New 409 codes: `RESOLUTION_BLOCKED`, `STALE_UPDATE`, `TICKET_NOT_WORKABLE`, `ACTION_FINAL`,
 `INVALID_ACTION_TRANSITION`, `DUPLICATE_REQUEST`. All Lab 2/Lab 3 endpoints, guards (CSRF origin
