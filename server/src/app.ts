@@ -15,6 +15,7 @@ import { adminRouter } from "./routes/admin.js";
 import { requesterActionsRouter } from "./routes/actions.js";
 import { generateTicketNumber } from "./services/ticketNumber.js";
 import { isTicketStatus } from "./services/ticketWorkflow.js";
+import { requesterDetailInclude, serializeRequesterTicket } from "./services/ticketSerializers.js";
 
 // docs/lab-02/specification.md BR-16 — fixed attachment rules.
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
@@ -184,6 +185,8 @@ app.post(
           description,
           requestedPriority: requestedPriority as "LOW" | "MEDIUM" | "HIGH",
           itPriority: requestedPriority as "LOW" | "MEDIUM" | "HIGH", // BR-24 — starts equal
+          // Lab 4 BR-24 — the first history row is written by the same (nested, atomic) insert.
+          statusHistory: { create: { fromStatus: null, toStatus: "NEW", changedById: req.user!.id } },
         },
       });
 
@@ -359,26 +362,11 @@ app.get("/api/tickets/:ticketNumber", ...asRequester, async (req: Request, res: 
     // BR-22/AC-03 — "doesn't exist" and "not yours" return the identical 404.
     const ticket = await getPrisma().ticket.findFirst({
       where: { ticketNumber: req.params.ticketNumber, requesterId: req.user!.id },
-      include: { attachments: { orderBy: { uploadedAt: "asc" } }, owner: { select: { id: true, name: true } } },
+      include: requesterDetailInclude,
     });
     if (!ticket) return res.status(404).json({ error: "Ticket not found" });
 
-    res.status(200).json({
-      id: ticket.id,
-      ticketNumber: ticket.ticketNumber,
-      ticketDate: ticket.createdAt,
-      requesterId: ticket.requesterId,
-      categoryId: ticket.categoryId,
-      relatedSystemId: ticket.relatedSystemId,
-      summary: ticket.summary,
-      description: ticket.description,
-      requestedPriority: ticket.requestedPriority,
-      itPriority: ticket.itPriority,
-      currentStatus: ticket.currentStatus,
-      owner: ticket.owner, // { id, name } | null — FR-12
-      requesterResolvedAt: ticket.requesterResolvedAt,
-      attachments: ticket.attachments.map(serializeAttachment),
-    });
+    res.status(200).json(serializeRequesterTicket(ticket));
   } catch {
     res.status(500).json({ error: "Unable to load ticket" });
   }

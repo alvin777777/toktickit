@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { getPrisma } from "../../src/prisma.js";
 import { api, asAdmin, asRequester, asRequesterB, asStaff } from "../helpers/auth.js";
+import { recordCompletedAction } from "../helpers/tickets.js";
 
 let requester: string;
 let requesterB: string;
@@ -75,6 +76,7 @@ describe("Public Comments", () => {
   it("are closed on a CLOSED ticket while Internal Notes stay open", async () => {
     const tn = await newTicket("Closed thread");
     await api().post(`/api/staff/tickets/${tn}/claim`).set("Cookie", staff);
+    await recordCompletedAction(staff, tn); // Lab 4 BR-20 gate (BR-38)
     for (const status of ["IN_PROGRESS", "RESOLVED", "CLOSED"]) {
       await api().patch(`/api/staff/tickets/${tn}/status`).set("Cookie", staff).send({ status });
     }

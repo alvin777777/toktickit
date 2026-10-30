@@ -15,6 +15,7 @@ import {
   serializeAction,
   validateAction,
 } from "../services/actions.js";
+import { HttpError, sendError as send } from "../services/httpError.js";
 
 // Lab 4 Issue 2 — Actions Taken (docs/lab-04/api-spec.md §1). The staff router is mounted inside
 // staffRouter (already behind asStaff) at /tickets/:ticketNumber/actions; the Requester router is
@@ -23,18 +24,6 @@ export const staffActionsRouter = Router({ mergeParams: true });
 export const requesterActionsRouter = Router();
 
 type Tx = Prisma.TransactionClient;
-
-// Thrown inside a transaction to roll it back and answer with a documented error.
-class HttpError extends Error {
-  constructor(public status: number, public body: Record<string, unknown>) {
-    super(String(body.error));
-  }
-}
-
-function send(res: Response, err: unknown, fallback: string) {
-  if (err instanceof HttpError) return res.status(err.status).json(err.body);
-  return res.status(500).json({ error: fallback });
-}
 
 const notWorkable = () =>
   new HttpError(409, { error: "This ticket is resolved, closed, or cancelled. Reopen it to record more actions.", code: "TICKET_NOT_WORKABLE" });

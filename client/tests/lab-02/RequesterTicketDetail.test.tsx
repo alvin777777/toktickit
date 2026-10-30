@@ -27,6 +27,8 @@ const TICKET: api.TicketDetail = {
   currentStatus: "NEW",
   owner: null,
   requesterResolvedAt: null,
+  resolvedAt: null, // Lab 4
+  statusHistory: [],
   attachments: [],
 };
 

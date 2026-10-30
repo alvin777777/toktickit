@@ -21,6 +21,12 @@ function ticket(overrides: Partial<api.StaffTicket> = {}): api.StaffTicket {
     owner: null,
     requesterResolvedAt: null,
     allowedTransitions: ["OPEN", "CANCELLED"],
+    // Lab 4 fields (api-spec.md §2.1)
+    version: 1,
+    resolvedAt: null,
+    resolution: { canResolve: false, blockers: ["OWNER_REQUIRED", "NO_COMPLETED_ACTION"] },
+    actionCounts: { total: 0, open: 0, completed: 0, cancelled: 0 },
+    statusHistory: [],
     attachments: [],
     createdAt: "2026-10-01T10:00:00.000Z",
     updatedAt: "2026-10-01T10:00:00.000Z",
@@ -74,7 +80,7 @@ describe("StaffTicketDetail", () => {
     await user.click(screen.getByRole("button", { name: /^claim$/i }));
 
     await waitFor(() => expect(screen.getByTestId("owner-name")).toHaveTextContent("Emily Davis"));
-    expect(claim).toHaveBeenCalledWith("TKT-2026-000001");
+    expect(claim).toHaveBeenCalledWith("TKT-2026-000001", 1); // + expectedVersion (Lab 4 BR-25)
     expect(screen.getAllByText("Open").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /^claim$/i })).not.toBeInTheDocument();
   });
@@ -97,7 +103,7 @@ describe("StaffTicketDetail", () => {
     await user.selectOptions(select, "7");
     await user.click(screen.getByRole("button", { name: /save owner/i }));
 
-    await waitFor(() => expect(setOwner).toHaveBeenCalledWith("TKT-2026-000001", 7));
+    await waitFor(() => expect(setOwner).toHaveBeenCalledWith("TKT-2026-000001", 7, 1));
     expect(await screen.findByTestId("owner-name")).toHaveTextContent("Emily Davis");
   });
 
@@ -110,7 +116,7 @@ describe("StaffTicketDetail", () => {
 
     await user.selectOptions(await screen.findByLabelText(/^IT Priority/i), "HIGH");
 
-    await waitFor(() => expect(spy).toHaveBeenCalledWith("TKT-2026-000001", "HIGH"));
+    await waitFor(() => expect(spy).toHaveBeenCalledWith("TKT-2026-000001", "HIGH", 1));
     expect(await screen.findByRole("status")).toHaveTextContent("Saved");
     expect(screen.getByTestId("requested-priority")).toHaveTextContent("MEDIUM");
     expect(screen.getByLabelText(/^IT Priority/i)).toHaveValue("HIGH");
@@ -133,7 +139,7 @@ describe("StaffTicketDetail", () => {
     expect(screen.getByRole("alertdialog")).toHaveTextContent(/close this ticket\?/i);
 
     await user.click(screen.getByRole("button", { name: /yes, closed it/i }));
-    await waitFor(() => expect(setStatus).toHaveBeenCalledWith("TKT-2026-000001", "CLOSED"));
+    await waitFor(() => expect(setStatus).toHaveBeenCalledWith("TKT-2026-000001", "CLOSED", 1));
     expect((await screen.findAllByText("Closed")).length).toBeGreaterThan(0);
   });
 

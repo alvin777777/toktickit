@@ -9,12 +9,19 @@ export class ApiError extends Error {
   code?: string;
   fields: Record<string, string>;
   allowed?: string[];
-  constructor(status: number, body: { error?: string; code?: string; fields?: Record<string, string>; allowed?: string[] } | null) {
+  blockers?: string[]; // Lab 4 — RESOLUTION_BLOCKED
+  current?: unknown; // Lab 4 — STALE_UPDATE carries the server's latest copy
+  constructor(
+    status: number,
+    body: { error?: string; code?: string; fields?: Record<string, string>; allowed?: string[]; blockers?: string[]; current?: unknown } | null
+  ) {
     super(body?.error ?? "Request failed");
     this.status = status;
     this.code = body?.code;
     this.fields = body?.fields ?? {};
     this.allowed = body?.allowed;
+    this.blockers = body?.blockers;
+    this.current = body?.current;
   }
 }
 
@@ -270,7 +277,18 @@ export interface TicketDetail {
   currentStatus: TicketStatus;
   owner: { id: number; name: string } | null; // FR-12
   requesterResolvedAt: string | null;
+  resolvedAt: string | null; // Lab 4 BR-23
+  statusHistory: StatusHistoryEntry[]; // Lab 4 BR-24
   attachments: AttachmentInfo[];
+}
+
+// Lab 4 — append-only status history (docs/lab-04/api-spec.md §0). changedBy null = migration.
+export interface StatusHistoryEntry {
+  id: number;
+  fromStatus: TicketStatus | null;
+  toStatus: TicketStatus;
+  changedBy: { id: number; name: string; role: Role } | null;
+  changedAt: string;
 }
 
 export async function getTicketDetail(ticketNumber: string): Promise<TicketDetail | null> {
@@ -428,10 +446,18 @@ export interface StaffTicket {
   owner: { id: number; name: string; role: Role } | null;
   requesterResolvedAt: string | null;
   allowedTransitions: TicketStatus[];
+  // Lab 4 (api-spec.md §2.1)
+  version: number;
+  resolvedAt: string | null;
+  resolution: { canResolve: boolean; blockers: ResolutionBlocker[] };
+  actionCounts: { total: number; open: number; completed: number; cancelled: number };
+  statusHistory: StatusHistoryEntry[];
   attachments: AttachmentInfo[];
   createdAt: string;
   updatedAt: string;
 }
+
+export type ResolutionBlocker = "OWNER_REQUIRED" | "NO_COMPLETED_ACTION" | "OPEN_ACTIONS" | "FOLLOW_UP_PENDING";
 
 const staffPath = (ticketNumber: string, suffix = "") => `/api/staff/tickets/${encodeURIComponent(ticketNumber)}${suffix}`;
 
@@ -444,20 +470,24 @@ export async function getStaffTicket(ticketNumber: string): Promise<StaffTicket 
   }
 }
 
-export async function claimTicket(ticketNumber: string): Promise<StaffTicket> {
-  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/claim"), { method: "POST" });
+// Lab 4 BR-25 — every workflow change carries the version the user was looking at.
+export async function claimTicket(ticketNumber: string, expectedVersion?: number): Promise<StaffTicket> {
+  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/claim"), { method: "POST", body: JSON.stringify({ expectedVersion }) });
 }
 
-export async function setTicketOwner(ticketNumber: string, ownerId: number | null): Promise<StaffTicket> {
-  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/owner"), { method: "PATCH", body: JSON.stringify({ ownerId }) });
+export async function setTicketOwner(ticketNumber: string, ownerId: number | null, expectedVersion?: number): Promise<StaffTicket> {
+  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/owner"), { method: "PATCH", body: JSON.stringify({ ownerId, expectedVersion }) });
 }
 
-export async function setItPriority(ticketNumber: string, itPriority: Priority): Promise<StaffTicket> {
-  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/it-priority"), { method: "PATCH", body: JSON.stringify({ itPriority }) });
+export async function setItPriority(ticketNumber: string, itPriority: Priority, expectedVersion?: number): Promise<StaffTicket> {
+  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/it-priority"), {
+    method: "PATCH",
+    body: JSON.stringify({ itPriority, expectedVersion }),
+  });
 }
 
-export async function setTicketStatus(ticketNumber: string, status: TicketStatus): Promise<StaffTicket> {
-  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/status"), { method: "PATCH", body: JSON.stringify({ status }) });
+export async function setTicketStatus(ticketNumber: string, status: TicketStatus, expectedVersion?: number): Promise<StaffTicket> {
+  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/status"), { method: "PATCH", body: JSON.stringify({ status, expectedVersion }) });
 }
 
 export async function getInternalNotes(ticketNumber: string): Promise<Entry[]> {
