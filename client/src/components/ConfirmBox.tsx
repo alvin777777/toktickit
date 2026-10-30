@@ -32,10 +32,11 @@ export default function ConfirmBox({ title, message, confirmLabel, danger, busy,
       </div>
       <p className="small mb-2">{message}</p>
       <div className="d-flex gap-2">
-        <button ref={confirmRef} className={`btn btn-sm ${danger ? "btn-danger" : "btn-success"}`} onClick={onConfirm} disabled={busy}>
+        {/* type="button": inside a form (Lab 4 action form) a default submit button would also submit it */}
+        <button ref={confirmRef} type="button" className={`btn btn-sm ${danger ? "btn-danger" : "btn-success"}`} onClick={onConfirm} disabled={busy}>
           {busy ? "Working…" : confirmLabel}
         </button>
-        <button className="btn btn-sm btn-outline-secondary" onClick={onCancel} disabled={busy}>
+        <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onCancel} disabled={busy}>
           Cancel
         </button>
       </div>

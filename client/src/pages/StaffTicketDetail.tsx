@@ -8,26 +8,30 @@ import {
   StaffTicket,
   TicketStatus,
   claimTicket,
+  createAction,
   downloadAttachment,
   getAssignees,
   getComments,
   getInternalNotes,
+  getStaffActions,
   getStaffTicket,
   postComment,
   postInternalNote,
   setItPriority,
   setTicketOwner,
   setTicketStatus,
+  updateAction,
 } from "../api.js";
 import { useAuth } from "../context/AuthContext.js";
 import { PRIORITY_BADGE, STATUS_LABEL, StatusBadge } from "../components/badges.js";
 import EntryThread from "../components/EntryThread.js";
 import ConfirmBox from "../components/ConfirmBox.js";
 import StatusHistory from "../components/StatusHistory.js";
+import ActionsTaken from "../components/ActionsTaken.js";
 
 type LoadState = "loading" | "success" | "notFound" | "error";
-type Tab = "comments" | "notes" | "attachments" | "history";
-const TABS: Tab[] = ["comments", "notes", "attachments", "history"];
+type Tab = "actions" | "comments" | "notes" | "attachments" | "history";
+const TABS: Tab[] = ["actions", "comments", "notes", "attachments", "history"];
 
 // docs/lab-04/ui-spec.md §6 — the resolution checklist (BR-20), one line per requirement.
 const GATE_ITEMS: { key: ResolutionBlocker; label: string }[] = [
@@ -55,7 +59,7 @@ export default function StaffTicketDetail() {
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   // ui-spec.md §5 — ?tab= opens a tab directly (dashboard links use ?tab=actions).
   const requestedTab = searchParams.get("tab") as Tab | null;
-  const [tab, setTab] = useState<Tab>(requestedTab && TABS.includes(requestedTab) ? requestedTab : "comments");
+  const [tab, setTab] = useState<Tab>(requestedTab && TABS.includes(requestedTab) ? requestedTab : "actions");
 
   // Owner control
   const [ownerMode, setOwnerMode] = useState<"view" | "reassign">("view");
@@ -95,6 +99,17 @@ export default function StaffTicketDetail() {
 
   function applyUpdate(updated: StaffTicket) {
     setTicket(updated);
+  }
+
+  // After an Action Taken changes, the gate, counts, and allowed transitions change with it; refresh
+  // the ticket quietly (no loading screen) so the Operations card stays truthful (BR-21).
+  async function refreshTicket() {
+    try {
+      const latest = await getStaffTicket(ticketNumber);
+      if (latest) setTicket(latest);
+    } catch {
+      /* the next workflow action reports any failure */
+    }
   }
 
   function describe(err: unknown, fallback: string): string {
@@ -468,6 +483,7 @@ export default function StaffTicketDetail() {
       <ul className="nav nav-tabs mb-3 flex-nowrap overflow-auto" role="tablist">
         {(
           [
+            ["actions", `Actions Taken (${ticket.actionCounts.total})`],
             ["comments", "Public Comments"],
             ["notes", "Internal Notes"],
             ["attachments", `Attachments (${activeAttachments.length})`],
@@ -487,6 +503,17 @@ export default function StaffTicketDetail() {
         ))}
       </ul>
 
+      {tab === "actions" && (
+        <ActionsTaken
+          load={() => getStaffActions(ticket.ticketNumber)}
+          workable={["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"].includes(ticket.currentStatus)}
+          assignees={assignees}
+          currentUserId={user?.id}
+          create={(input) => createAction(ticket.ticketNumber, input)}
+          update={(id, input) => updateAction(ticket.ticketNumber, id, input)}
+          onChanged={refreshTicket}
+        />
+      )}
       {tab === "comments" && (
         <EntryThread
           kind="comment"

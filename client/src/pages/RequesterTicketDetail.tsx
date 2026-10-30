@@ -9,6 +9,7 @@ import {
   getCategories,
   getComments,
   getRelatedSystems,
+  getRequesterActions,
   getTicketDetail,
   markRequesterResolved,
   postComment,
@@ -19,6 +20,7 @@ import AttachmentSection from "../components/AttachmentSection.js";
 import EntryThread from "../components/EntryThread.js";
 import ConfirmBox from "../components/ConfirmBox.js";
 import StatusHistory from "../components/StatusHistory.js";
+import ActionsTaken from "../components/ActionsTaken.js";
 
 type LoadState = "loading" | "success" | "notFound" | "error";
 
@@ -281,6 +283,13 @@ export default function RequesterTicketDetail() {
           value={ticket.description}
         />
       </div>
+
+      <section className="mb-4" aria-labelledby="actions-taken-heading">
+        <h2 id="actions-taken-heading" className="h6">
+          Actions Taken
+        </h2>
+        <ActionsTaken readOnly load={() => getRequesterActions(ticket.ticketNumber)} />
+      </section>
 
       <AttachmentSection
         ticketNumber={ticket.ticketNumber}

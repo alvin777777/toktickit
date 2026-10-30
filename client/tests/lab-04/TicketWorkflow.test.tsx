@@ -16,6 +16,7 @@ describe("Ticket workflow on IT Staff Ticket Detail", () => {
     vi.spyOn(api, "getAssignees").mockResolvedValue([{ id: 7, name: "Emily Davis", role: "IT_STAFF" }]);
     vi.spyOn(api, "getComments").mockResolvedValue([]);
     vi.spyOn(api, "getInternalNotes").mockResolvedValue([]);
+    vi.spyOn(api, "getStaffActions").mockResolvedValue([]);
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -112,6 +113,7 @@ describe("Requester status history", () => {
     vi.spyOn(api, "getCategories").mockResolvedValue([]);
     vi.spyOn(api, "getRelatedSystems").mockResolvedValue([]);
     vi.spyOn(api, "getComments").mockResolvedValue([]);
+    vi.spyOn(api, "getRequesterActions").mockResolvedValue([]);
     renderWithAuth(<RequesterTicketDetail />, { route: "/tickets/TKT-2026-000001", path: "/tickets/:ticketNumber" });
     const section = await screen.findByRole("region", { name: "Status history" });
     expect(within(section).getAllByRole("listitem")).toHaveLength(3);

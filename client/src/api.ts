@@ -535,3 +535,57 @@ export async function updateUser(id: number, input: Partial<Pick<AdminUser, "nam
 export async function setInitialPassword(id: number, initialPassword: string): Promise<AdminUser> {
   return apiFetch<AdminUser>(`/api/admin/users/${id}/initial-password`, { method: "POST", body: JSON.stringify({ initialPassword }) });
 }
+
+// -----------------------------------------------------------------------------
+// Lab 4 Issue 4 — Actions Taken (docs/lab-04/api-spec.md §1)
+// -----------------------------------------------------------------------------
+export type ActionStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+
+export interface ActionTaken {
+  id: number;
+  ticketId: number;
+  actionAt: string;
+  description: string;
+  result: string | null;
+  status: ActionStatus;
+  performedBy: { id: number; name: string; role: Role };
+  createdBy: { id: number; name: string; role: Role };
+  followUpRequired: boolean;
+  followUpNote: string | null;
+  attachmentNotes: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  cancelledAt: string | null;
+}
+
+export interface ActionInput {
+  actionAt?: string;
+  description?: string;
+  result?: string | null;
+  status?: ActionStatus;
+  performedById?: number;
+  followUpRequired?: boolean;
+  followUpNote?: string | null;
+  attachmentNotes?: string | null;
+}
+
+export async function getStaffActions(ticketNumber: string): Promise<ActionTaken[]> {
+  return apiFetch<ActionTaken[]>(staffPath(ticketNumber, "/actions"));
+}
+
+export async function getRequesterActions(ticketNumber: string): Promise<ActionTaken[]> {
+  return apiFetch<ActionTaken[]>(`/api/tickets/${encodeURIComponent(ticketNumber)}/actions`);
+}
+
+// BR-14 — clientRequestId is generated once per open form, so a retry after a network failure
+// returns the action that was already saved instead of creating a second one.
+export async function createAction(ticketNumber: string, input: ActionInput & { clientRequestId: string }): Promise<ActionTaken> {
+  return apiFetch<ActionTaken>(staffPath(ticketNumber, "/actions"), { method: "POST", body: JSON.stringify(input) });
+}
+
+// BR-13 — `version` is the one the user was editing; a newer one on the server is a 409.
+export async function updateAction(ticketNumber: string, actionId: number, input: ActionInput & { version: number }): Promise<ActionTaken> {
+  return apiFetch<ActionTaken>(staffPath(ticketNumber, `/actions/${actionId}`), { method: "PATCH", body: JSON.stringify(input) });
+}
