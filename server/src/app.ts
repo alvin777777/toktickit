@@ -12,6 +12,7 @@ import { csrfOriginCheck } from "./middleware/csrf.js";
 import { staffRouter } from "./routes/staff.js";
 import { commentsRouter } from "./routes/comments.js";
 import { adminRouter } from "./routes/admin.js";
+import { requesterActionsRouter } from "./routes/actions.js";
 import { generateTicketNumber } from "./services/ticketNumber.js";
 import { isTicketStatus } from "./services/ticketWorkflow.js";
 
@@ -68,6 +69,11 @@ app.use("/api/staff", staffRouter);
 // Lab 3 Issue 4 — Public Comments + "appears resolved" (docs/lab-03/api-spec.md §3.6–§3.8)
 // ---------------------------------------------------------------------------
 app.use("/api/tickets", commentsRouter);
+
+// ---------------------------------------------------------------------------
+// Lab 4 Issue 2 — read-only Actions Taken for the owning Requester (docs/lab-04/api-spec.md §1.4)
+// ---------------------------------------------------------------------------
+app.use("/api/tickets", requesterActionsRouter);
 
 // ---------------------------------------------------------------------------
 // Lab 3 Issue 5 — Administrator user management (docs/lab-03/api-spec.md §5)

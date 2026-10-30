@@ -4,6 +4,7 @@ import { getPrisma } from "../prisma.js";
 import { asStaff } from "../middleware/auth.js";
 import { TICKET_STATUSES, allowedTransitions, canTransition, isPriority, isTerminal, isTicketStatus } from "../services/ticketWorkflow.js";
 import { authorSelect, serializeEntry, serializeStaffTicket, staffDetailInclude, validateEntryBody } from "../services/ticketSerializers.js";
+import { staffActionsRouter } from "./actions.js";
 
 // Lab 3 Issue 3 — IT Staff endpoints (docs/lab-03/api-spec.md §4). Every route is guarded by
 // asStaff (requireAuth → requirePasswordChanged → requireRole IT_STAFF|ADMIN) before any lookup,
@@ -274,5 +275,8 @@ staffRouter.post("/tickets/:ticketNumber/internal-notes", async (req: Request, r
     res.status(500).json({ error: "Unable to add internal note" });
   }
 });
+
+// Lab 4 Issue 2 — Actions Taken (docs/lab-04/api-spec.md §1.1–§1.3), behind the same asStaff guard.
+staffRouter.use("/tickets/:ticketNumber/actions", staffActionsRouter);
 
 export { TICKET_STATUSES };

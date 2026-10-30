@@ -42,6 +42,9 @@ model User {
   sessions           Session[]
   comments           TicketComment[]
   internalNotes      InternalNote[]
+  actionsPerformed   ActionTaken[]   @relation("ActionPerformer")
+  actionsRecorded    ActionTaken[]   @relation("ActionRecorder")
+  statusChanges      TicketStatusHistory[]
 }
 
 // Lab 3 Issue 2 — server-side sessions (BR-08). Only the SHA-256 of the cookie token is stored.
@@ -102,6 +105,10 @@ model Ticket {
   owner             User?         @relation("TicketOwner", fields: [ownerId], references: [id])
   itPriority        Priority
   requesterResolvedAt DateTime?
+  // Lab 4 — optimistic concurrency for owner / IT Priority / status changes (docs/lab-04/
+  // specification.md BR-25) and the moment the Ticket last entered RESOLVED (BR-23).
+  version           Int           @default(1)
+  resolvedAt        DateTime?
   categoryId        Int
   category          Category      @relation(fields: [categoryId], references: [id])
   relatedSystemId   Int
@@ -115,12 +122,16 @@ model Ticket {
   attachments       Attachment[]
   comments          TicketComment[]
   internalNotes     InternalNote[]
+  actions           ActionTaken[]
+  statusHistory     TicketStatusHistory[]
 
   @@index([requesterId])
   @@index([createdAt])
   @@index([ownerId])
   @@index([currentStatus])
   @@index([itPriority])
+  @@index([updatedAt])
+  @@index([resolvedAt])
 }
 
 // Lab 2 Issue 3 (created here since Create Ticket needs attachment upload) — soft-removal
@@ -166,4 +177,56 @@ model InternalNote {
   createdAt DateTime @default(now())
 
   @@index([ticketId])
+}
+
+// Lab 4 Issue 2 — Actions Taken (docs/lab-04/specification.md BR-01..BR-16). One Ticket has many
+// actions (BR-01). Who recorded the entry (createdBy, always the session user) and who did the work
+// (performedBy, defaults to the recorder, may be another active IT Staff — BR-02/BR-03) are separate
+// facts, hence two user FKs. Rows are never deleted (BR-12); `version` guards edits (BR-13).
+enum ActionStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model ActionTaken {
+  id               Int          @id @default(autoincrement())
+  ticketId         Int
+  ticket           Ticket       @relation(fields: [ticketId], references: [id])
+  actionAt         DateTime
+  description      String
+  result           String?
+  status           ActionStatus
+  performedById    Int
+  performedBy      User         @relation("ActionPerformer", fields: [performedById], references: [id])
+  createdById      Int
+  createdBy        User         @relation("ActionRecorder", fields: [createdById], references: [id])
+  followUpRequired Boolean      @default(false)
+  followUpNote     String?
+  attachmentNotes  String?
+  clientRequestId  String?      @unique
+  version          Int          @default(1)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  completedAt      DateTime?
+  cancelledAt      DateTime?
+
+  @@index([ticketId, actionAt])
+  @@index([performedById, status])
+}
+
+// Lab 4 Issue 2 — append-only status history (BR-24). Written in the same transaction as the status
+// change it records; never updated or deleted. changedById is null for migration back-fill rows.
+model TicketStatusHistory {
+  id          Int           @id @default(autoincrement())
+  ticketId    Int
+  ticket      Ticket        @relation(fields: [ticketId], references: [id])
+  fromStatus  TicketStatus?
+  toStatus    TicketStatus
+  changedById Int?
+  changedBy   User?         @relation(fields: [changedById], references: [id])
+  changedAt   DateTime      @default(now())
+
+  @@index([ticketId, changedAt])
 }
