@@ -120,3 +120,38 @@ describe("Requester status history", () => {
     expect(within(section).queryByRole("button")).not.toBeInTheDocument();
   });
 });
+
+// UI-10 (BR-35, AC-22) — drill-down targets read their filters from the URL.
+import MyTickets from "../../src/pages/MyTickets.js";
+import StaffTicketQueue from "../../src/pages/StaffTicketQueue.js";
+
+describe("drill-down targets", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("My Tickets sends statusGroup / currentStatus from the URL and offers to clear the group", async () => {
+    vi.spyOn(api, "getCategories").mockResolvedValue([]);
+    const list = vi.spyOn(api, "getMyTickets").mockResolvedValue({ items: [], page: 1, pageSize: 10, totalItems: 0, totalPages: 1 });
+    const user = userEvent.setup();
+    renderWithAuth(<MyTickets />, { route: "/tickets?statusGroup=active" });
+    await waitFor(() => expect(list).toHaveBeenCalledWith(expect.objectContaining({ statusGroup: "active" })));
+    await user.click(screen.getByRole("button", { name: "Show all statuses" }));
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ statusGroup: undefined })));
+
+    list.mockClear();
+    renderWithAuth(<MyTickets />, { route: "/tickets?currentStatus=WAITING_FOR_REQUESTER" });
+    await waitFor(() => expect(list).toHaveBeenCalledWith(expect.objectContaining({ currentStatus: "WAITING_FOR_REQUESTER" })));
+  });
+
+  it("the Ticket Queue sends owner / itPriority / statusGroup / appearsResolved from the URL", async () => {
+    vi.spyOn(api, "getCategories").mockResolvedValue([]);
+    vi.spyOn(api, "getAssignees").mockResolvedValue([]);
+    const q = vi.spyOn(api, "getStaffQueue").mockResolvedValue({ items: [], page: 1, pageSize: 10, totalItems: 0, totalPages: 1, counts: { all: 3, unassigned: 1, mine: 1 } });
+    renderWithAuth(<StaffTicketQueue />, { user: STAFF_USER, route: "/staff/queue?statusGroup=active&owner=unassigned&itPriority=HIGH&appearsResolved=true" });
+    await waitFor(() =>
+      expect(q).toHaveBeenCalledWith(expect.objectContaining({ statusGroup: "active", owner: "unassigned", itPriority: "HIGH", appearsResolved: "true" }))
+    );
+    expect(screen.getByTestId("drilldown-chips")).toHaveTextContent("Active tickets only");
+    expect(screen.getByTestId("drilldown-chips")).toHaveTextContent("Requester says resolved");
+    expect(screen.getByRole("button", { name: /^Unassigned/ })).toHaveClass("btn-success"); // the owner chip reflects the URL
+  });
+});

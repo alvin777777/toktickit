@@ -239,3 +239,21 @@ describe("requester cannot drive the workflow", () => {
     expect((await ticketByNumber(tn)).currentStatus).toBe("NEW");
   });
 });
+
+// API-19 (AC-13, BR-22) — the Requester's signal is advisory: no status change, but it is counted.
+describe("requester 'appears resolved' indication", () => {
+  it("leaves the status alone and shows up in the staff dashboard's appearsResolved list query", async () => {
+    const tn = await newTicket(requester, "Lab 4 appears resolved");
+    await api().post(`/api/staff/tickets/${tn}/claim`).set("Cookie", staff);
+    const marked = await api().post(`/api/tickets/${tn}/requester-resolved`).set("Cookie", requester);
+    expect(marked.status).toBe(200);
+    expect(marked.body.currentStatus).toBe("OPEN");
+    expect((await ticketByNumber(tn)).currentStatus).toBe("OPEN");
+
+    const dash = await api().get("/api/dashboard/staff").set("Cookie", staff);
+    expect(dash.body.metrics.appearsResolved.value).toBeGreaterThanOrEqual(1);
+    const q = new URLSearchParams({ ...dash.body.metrics.appearsResolved.query, search: tn });
+    const list = await api().get(`/api/staff/tickets?${q}`).set("Cookie", staff);
+    expect(list.body.items.map((t: { ticketNumber: string }) => t.ticketNumber)).toEqual([tn]);
+  });
+});

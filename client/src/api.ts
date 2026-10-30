@@ -231,6 +231,7 @@ export interface TicketListQuery {
   categoryId?: number;
   requestedPriority?: string;
   currentStatus?: string;
+  statusGroup?: string; // Lab 4 BR-35 — "active"
   sortBy?: string;
   sortDir?: "asc" | "desc";
   page?: number;
@@ -385,6 +386,8 @@ export interface QueueQuery {
   itPriority?: string;
   categoryId?: number;
   owner?: string; // "unassigned" | "me" | user id
+  statusGroup?: string; // Lab 4 BR-35 — "active"
+  appearsResolved?: string; // Lab 4 BR-35 — "true"
   sortBy?: string;
   sortDir?: "asc" | "desc";
   page?: number;
@@ -588,4 +591,63 @@ export async function createAction(ticketNumber: string, input: ActionInput & { 
 // BR-13 — `version` is the one the user was editing; a newer one on the server is a 409.
 export async function updateAction(ticketNumber: string, actionId: number, input: ActionInput & { version: number }): Promise<ActionTaken> {
   return apiFetch<ActionTaken>(staffPath(ticketNumber, `/actions/${actionId}`), { method: "PATCH", body: JSON.stringify(input) });
+}
+
+// -----------------------------------------------------------------------------
+// Lab 4 Issue 5 — dashboards (docs/lab-04/api-spec.md §3)
+// -----------------------------------------------------------------------------
+// `query` is the list-API query that reproduces the count (BR-34); null when no list exists.
+export interface Metric {
+  value: number;
+  query: Record<string, string> | null;
+}
+
+export interface TicketSummary {
+  ticketNumber: string;
+  summary: string;
+  currentStatus: TicketStatus;
+  itPriority: Priority;
+  updatedAt: string;
+  resolvedAt: string | null;
+  owner?: NamedRef | null;
+}
+
+export interface RequesterDashboardData {
+  generatedAt: string;
+  recentWindowDays: number;
+  metrics: Record<"open" | "waitingForMe" | "resolved" | "closed", Metric>;
+  needsAttention: TicketSummary[];
+  recentlyUpdated: TicketSummary[];
+  recentlyResolved: TicketSummary[];
+}
+
+export type StaffMetricKey =
+  | "new"
+  | "inProgress"
+  | "waitingForRequester"
+  | "reopened"
+  | "unassigned"
+  | "mine"
+  | "highPriority"
+  | "appearsResolved"
+  | "myOpenActions";
+
+export interface StaffDashboardData {
+  generatedAt: string;
+  recentWindowDays: number;
+  metrics: Record<StaffMetricKey, Metric>;
+  byStatus: Record<TicketStatus, number>;
+  byItPriority: Record<Priority, number>;
+  myOpenActions: { id: number; ticketNumber: string; ticketSummary: string; description: string; status: ActionStatus; actionAt: string }[];
+  urgent: TicketSummary[];
+  recentlyUpdated: TicketSummary[];
+  userCounts?: { requesters: number; itStaff: number; administrators: number; inactive: number }; // Administrators only
+}
+
+export async function getRequesterDashboard(): Promise<RequesterDashboardData> {
+  return apiFetch<RequesterDashboardData>("/api/dashboard/requester");
+}
+
+export async function getStaffDashboard(): Promise<StaffDashboardData> {
+  return apiFetch<StaffDashboardData>("/api/dashboard/staff");
 }

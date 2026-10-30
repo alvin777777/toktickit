@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Assignee, Category, QueueItem, getAssignees, getCategories, getStaffQueue } from "../api.js";
 import { ALL_STATUSES, PRIORITY_BADGE, STATUS_LABEL, StatusBadge } from "../components/badges.js";
 
@@ -9,6 +9,9 @@ type SortField = "ticketNumber" | "createdAt" | "itPriority" | "currentStatus";
 // ui-spec.md §6 — IT Staff Ticket Queue (FR-13, AC-13/AC-14).
 export default function StaffTicketQueue() {
   const navigate = useNavigate();
+  // Lab 4 BR-35 — dashboard drill-downs arrive with their filters in the URL; read them once.
+  const [params] = useSearchParams();
+  const initial = (key: string) => params.get(key) ?? "";
   const [categories, setCategories] = useState<Category[]>([]);
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -20,15 +23,17 @@ export default function StaffTicketQueue() {
   const [counts, setCounts] = useState({ all: 0, unassigned: 0, mine: 0 });
   const requestIdRef = useRef(0); // stale-response guard, same as My Tickets
 
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
-  const [itPriority, setItPriority] = useState("");
-  const [owner, setOwner] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [search, setSearch] = useState(initial("search"));
+  const [status, setStatus] = useState(initial("status"));
+  const [itPriority, setItPriority] = useState(initial("itPriority"));
+  const [owner, setOwner] = useState(initial("owner"));
+  const [categoryId, setCategoryId] = useState(initial("categoryId"));
+  const [statusGroup, setStatusGroup] = useState(initial("statusGroup") === "active" ? "active" : "");
+  const [appearsResolved, setAppearsResolved] = useState(initial("appearsResolved") === "true" ? "true" : "");
   const [sortBy, setSortBy] = useState<SortField>("createdAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
-  const filtersActive = Boolean(search || status || itPriority || owner || categoryId);
+  const filtersActive = Boolean(search || status || itPriority || owner || categoryId || statusGroup || appearsResolved);
 
   useEffect(() => {
     getCategories().then(setCategories).catch(() => {});
@@ -38,7 +43,7 @@ export default function StaffTicketQueue() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, status, itPriority, owner, categoryId, sortBy, sortDir, page]);
+  }, [search, status, itPriority, owner, categoryId, statusGroup, appearsResolved, sortBy, sortDir, page]);
 
   async function load() {
     const requestId = ++requestIdRef.current;
@@ -50,6 +55,8 @@ export default function StaffTicketQueue() {
         itPriority: itPriority || undefined,
         owner: owner || undefined,
         categoryId: categoryId ? Number(categoryId) : undefined,
+        statusGroup: statusGroup || undefined,
+        appearsResolved: appearsResolved || undefined,
         sortBy,
         sortDir,
         page,
@@ -82,6 +89,8 @@ export default function StaffTicketQueue() {
     setItPriority("");
     setOwner("");
     setCategoryId("");
+    setStatusGroup("");
+    setAppearsResolved("");
     setPage(1);
   }
 
@@ -118,6 +127,22 @@ export default function StaffTicketQueue() {
         </div>
       </div>
 
+      {(statusGroup || appearsResolved) && (
+        <div className="d-flex flex-wrap gap-2 mb-2" data-testid="drilldown-chips">
+          {statusGroup && (
+            <span className="badge rounded-pill text-bg-light border d-inline-flex align-items-center gap-1">
+              Active tickets only
+              <button type="button" className="btn-close btn-close-sm" style={{ fontSize: "0.6rem" }} aria-label="Show all statuses" onClick={() => { setStatusGroup(""); setPage(1); }} />
+            </span>
+          )}
+          {appearsResolved && (
+            <span className="badge rounded-pill text-bg-light border d-inline-flex align-items-center gap-1">
+              Requester says resolved
+              <button type="button" className="btn-close btn-close-sm" style={{ fontSize: "0.6rem" }} aria-label="Remove the appears-resolved filter" onClick={() => { setAppearsResolved(""); setPage(1); }} />
+            </span>
+          )}
+        </div>
+      )}
       {!showEmpty && (
         <div className="row g-2 mb-3">
           <div className="col-12 col-lg-3">

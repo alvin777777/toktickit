@@ -5,7 +5,7 @@ import { asStaff } from "../middleware/auth.js";
 import { TICKET_STATUSES, allowedTransitions, canTransition, isPriority, isTerminal, isTicketStatus } from "../services/ticketWorkflow.js";
 import { authorSelect, serializeEntry, serializeStaffTicket, staffDetailInclude, validateEntryBody } from "../services/ticketSerializers.js";
 import { staffActionsRouter } from "./actions.js";
-import { resolutionBlockers } from "../services/actions.js";
+import { WORKABLE_STATUSES, resolutionBlockers } from "../services/actions.js";
 import { HttpError, sendError } from "../services/httpError.js";
 
 // Lab 3 Issue 3 — IT Staff endpoints (docs/lab-03/api-spec.md §4). Every route is guarded by
@@ -63,6 +63,9 @@ staffRouter.get("/tickets", async (req: Request, res: Response) => {
     ];
   }
   if (isTicketStatus(req.query.status)) where.currentStatus = req.query.status;
+  // Lab 4 BR-35 — dashboard drill-down filters; a specific status wins over the group.
+  else if (req.query.statusGroup === "active") where.currentStatus = { in: WORKABLE_STATUSES };
+  if (req.query.appearsResolved === "true") where.requesterResolvedAt = { not: null };
   if (isPriority(req.query.itPriority)) where.itPriority = req.query.itPriority;
   const categoryId = Number(req.query.categoryId);
   if (Number.isInteger(categoryId) && categoryId > 0) where.categoryId = categoryId;
