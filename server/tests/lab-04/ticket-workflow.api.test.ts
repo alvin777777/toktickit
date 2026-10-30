@@ -125,6 +125,7 @@ describe("staff detail reflects the gate", () => {
     await api().post(`/api/staff/tickets/${tn}/claim`).set("Cookie", staff);
     await setStatus(tn, "IN_PROGRESS");
     const open = await postAction(staff, tn, validAction({ status: "PLANNED", result: null }));
+    expect(open.status, JSON.stringify(open.body)).toBe(201);
 
     const blocked = await detail(tn);
     expect(blocked.body.allowedTransitions).toEqual(["WAITING_FOR_REQUESTER", "CANCELLED"]);

@@ -75,7 +75,11 @@ staffRouter.get("/tickets", async (req: Request, res: Response) => {
   }
 
   try {
-    const [items, totalItems, all, unassigned, mine] = await Promise.all([
+    // One REPEATABLE READ snapshot for the page and every count: separate statements under the
+    // default READ COMMITTED could each see a different set of tickets when others are being created,
+    // so totalItems and counts.all disagreed (seen once Lab 4's parallel tests ran; BR-34 of Lab 4
+    // relies on dashboard counts equalling list totals).
+    const [items, totalItems, all, unassigned, mine] = await prisma.$transaction([
       prisma.ticket.findMany({
         where,
         // Enum columns sort in declaration order in Postgres (LOW < MEDIUM < HIGH; BR-25 order for
@@ -89,7 +93,7 @@ staffRouter.get("/tickets", async (req: Request, res: Response) => {
       prisma.ticket.count(),
       prisma.ticket.count({ where: { ownerId: null } }),
       prisma.ticket.count({ where: { ownerId: me } }),
-    ]);
+    ], { isolationLevel: "RepeatableRead" });
 
     res.status(200).json({
       items,
