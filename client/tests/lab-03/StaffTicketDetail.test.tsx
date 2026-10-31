@@ -62,6 +62,7 @@ describe("StaffTicketDetail", () => {
     ]);
     vi.spyOn(api, "getComments").mockResolvedValue([]);
     vi.spyOn(api, "getInternalNotes").mockResolvedValue([]);
+    vi.spyOn(api, "getStaffActions").mockResolvedValue([]); // Lab 4 — Actions Taken is the first tab
   });
   afterEach(() => {
     vi.restoreAllMocks();
@@ -164,6 +165,8 @@ describe("StaffTicketDetail", () => {
     const user = userEvent.setup();
     renderDetail();
 
+    // Lab 4 (BR-38): Actions Taken is now the default tab, so open Public Comments first.
+    await user.click(await screen.findByRole("tab", { name: /public comments/i }));
     const comments = await screen.findByTestId("public-comments");
     expect(await within(comments).findByText("Public reply")).toBeInTheDocument();
     expect(screen.queryByText("Private note")).not.toBeInTheDocument();
