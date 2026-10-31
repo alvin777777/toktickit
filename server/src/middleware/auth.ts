@@ -32,22 +32,29 @@ function unauthenticated(res: Response) {
   return res.status(401).json({ error: "Authentication required", code: "UNAUTHENTICATED" });
 }
 
+// The user behind a session cookie, or null when the session is missing, unknown, expired, or its
+// user is inactive (BR-08, BR-10). A dead session row is deleted on the way out.
+export async function sessionUser(req: Request): Promise<{ user: AuthUser; token: string } | null> {
+  const token = (req.cookies as Record<string, string> | undefined)?.[SESSION_COOKIE];
+  if (!token || typeof token !== "string") return null;
+  const session = await getPrisma().session.findUnique({
+    where: { tokenHash: hashToken(token) },
+    include: { user: true },
+  });
+  if (!session || session.expiresAt.getTime() <= Date.now() || !session.user.isActive) {
+    if (session) await getPrisma().session.delete({ where: { id: session.id } }).catch(() => {});
+    return null;
+  }
+  return { user: serializeUser(session.user), token };
+}
+
 // Guard 1 — valid, unexpired session whose user is still active (BR-08, BR-10, AC-30).
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const token = (req.cookies as Record<string, string> | undefined)?.[SESSION_COOKIE];
-  if (!token || typeof token !== "string") return unauthenticated(res);
-
   try {
-    const session = await getPrisma().session.findUnique({
-      where: { tokenHash: hashToken(token) },
-      include: { user: true },
-    });
-    if (!session || session.expiresAt.getTime() <= Date.now() || !session.user.isActive) {
-      if (session) await getPrisma().session.delete({ where: { id: session.id } }).catch(() => {});
-      return unauthenticated(res);
-    }
-    req.user = serializeUser(session.user);
-    req.sessionToken = token;
+    const found = await sessionUser(req);
+    if (!found) return unauthenticated(res);
+    req.user = found.user;
+    req.sessionToken = found.token;
     next();
   } catch {
     res.status(500).json({ error: "Unable to verify session" });

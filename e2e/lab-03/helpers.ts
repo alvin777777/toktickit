@@ -18,8 +18,18 @@ export async function login(page: Page, email: string, password = SEED_PASSWORD)
   await page.getByRole("button", { name: /sign in/i }).click();
 }
 
+// Lab 4 (BR-38): every role lands on /dashboard first. The Lab 3 specs then continue from the
+// page they were written for (`home`), reached through the shell like a user would.
+const LAB3_HOMES: [RegExp, string][] = [
+  [/\/tickets$/, "/tickets"],
+  [/\/staff\/queue$/, "/staff/queue"],
+  [/\/admin\/users$/, "/admin/users"],
+];
 export async function loginExpectingHome(page: Page, email: string, home: RegExp, password = SEED_PASSWORD) {
   await login(page, email, password);
+  await expect(page).toHaveURL(/\/dashboard$/);
+  const path = LAB3_HOMES.find(([re]) => re.source === home.source)?.[1];
+  if (path) await page.goto(path);
   await expect(page).toHaveURL(home);
 }
 
