@@ -20,6 +20,8 @@ function ticket(overrides: Partial<api.TicketDetail> = {}): api.TicketDetail {
     currentStatus: "IN_PROGRESS",
     owner: { id: 7, name: "Emily Davis" },
     requesterResolvedAt: null,
+    resolvedAt: null, // Lab 4
+    statusHistory: [],
     attachments: [],
     ...overrides,
   };

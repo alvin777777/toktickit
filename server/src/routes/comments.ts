@@ -2,7 +2,13 @@ import { Router, Request, Response } from "express";
 import { getPrisma } from "../prisma.js";
 import { asRequester, authenticated, requireRole } from "../middleware/auth.js";
 import { isCommentable, isTerminal } from "../services/ticketWorkflow.js";
-import { authorSelect, serializeEntry, validateEntryBody } from "../services/ticketSerializers.js";
+import {
+  authorSelect,
+  requesterDetailInclude,
+  serializeEntry,
+  serializeRequesterTicket,
+  validateEntryBody,
+} from "../services/ticketSerializers.js";
 
 // Lab 3 Issue 4 — Public Comments and the Requester's "appears resolved" signal
 // (docs/lab-03/api-spec.md §3.6–§3.8). Mounted under /api/tickets.
@@ -86,35 +92,8 @@ commentsRouter.post("/:ticketNumber/requester-resolved", ...asRequester, async (
       }
       return res.status(409).json({ error: "You already indicated this problem appears resolved.", code: "ALREADY_INDICATED" });
     }
-    const updated = await prisma.ticket.findUniqueOrThrow({
-      where: { id: ticket.id },
-      include: { attachments: { orderBy: { uploadedAt: "asc" } }, owner: { select: { id: true, name: true } } },
-    });
-    res.status(200).json({
-      id: updated.id,
-      ticketNumber: updated.ticketNumber,
-      ticketDate: updated.createdAt,
-      requesterId: updated.requesterId,
-      categoryId: updated.categoryId,
-      relatedSystemId: updated.relatedSystemId,
-      summary: updated.summary,
-      description: updated.description,
-      requestedPriority: updated.requestedPriority,
-      itPriority: updated.itPriority,
-      currentStatus: updated.currentStatus,
-      owner: updated.owner,
-      requesterResolvedAt: updated.requesterResolvedAt,
-      attachments: updated.attachments.map((a) => ({
-        id: a.id,
-        ticketId: a.ticketId,
-        originalFilename: a.originalFilename,
-        sizeBytes: a.sizeBytes,
-        mimeType: a.mimeType,
-        uploadedAt: a.uploadedAt,
-        removedAt: a.removedAt,
-        removedReason: a.removedReason,
-      })),
-    });
+    const updated = await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id }, include: requesterDetailInclude });
+    res.status(200).json(serializeRequesterTicket(updated));
   } catch {
     res.status(500).json({ error: "Unable to update ticket" });
   }

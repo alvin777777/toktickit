@@ -59,3 +59,11 @@ export function postAction(cookie: string, ticketNumber: string, body: Record<st
 export function patchAction(cookie: string, ticketNumber: string, actionId: number, body: Record<string, unknown>) {
   return api().patch(`/api/staff/tickets/${ticketNumber}/actions/${actionId}`).set("Cookie", cookie).send(body);
 }
+
+// Lab 4 BR-20 — a Ticket can only be resolved once completed work is recorded. Lab 3 tests that
+// resolve a Ticket call this first (BR-38 regression amendment).
+export async function recordCompletedAction(cookie: string, ticketNumber: string) {
+  const res = await postAction(cookie, ticketNumber, validAction({ description: "Fixed the reported problem." }));
+  expect(res.status).toBe(201);
+  return res.body;
+}
