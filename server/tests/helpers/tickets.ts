@@ -67,3 +67,32 @@ export async function recordCompletedAction(cookie: string, ticketNumber: string
   expect(res.status).toBe(201);
   return res.body;
 }
+
+// A brand-new active account (password already changed) so a dashboard test owns all of its data
+// and can compare numbers exactly while other files create tickets in parallel.
+let hashed: Promise<string> | null = null;
+export async function freshUser(role: "REQUESTER" | "IT_STAFF" | "ADMIN") {
+  const { hashPassword } = await import("../../src/services/password.js");
+  const { loginAs, SEED_PASSWORD } = await import("./auth.js");
+  hashed ??= hashPassword(SEED_PASSWORD);
+  const email = `lab4.${role.toLowerCase()}.${Date.now()}.${Math.random().toString(16).slice(2, 8)}@toktickit.dev`;
+  const user = await getPrisma().user.create({
+    data: { name: `Lab4 ${role}`, email, role, passwordHash: await hashed, mustChangePassword: false },
+  });
+  return { id: user.id, email, cookie: await loginAs(email) };
+}
+
+// For numbers that span every Ticket: other test files change them concurrently, so the three
+// readings (dashboard, direct count, drill-down list) are retried until one quiet moment agrees.
+// A short back-off lets the parallel files' bursts of ticket creation pass; every reading must
+// still be exactly equal, so this never accepts a wrong number — it only waits for a quiet moment.
+export async function eventuallyEqual(read: () => Promise<number[]>, attempts = 40) {
+  let last: number[] = [];
+  for (let i = 0; i < attempts; i++) {
+    last = await read();
+    if (last.every((n) => n === last[0])) return last[0];
+    await new Promise((r) => setTimeout(r, 50 + i * 25));
+  }
+  expect(last, "dashboard / database / drill-down never agreed").toEqual(last.map(() => last[0]));
+  return last[0];
+}

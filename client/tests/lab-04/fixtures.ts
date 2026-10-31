@@ -54,3 +54,58 @@ export function requesterTicket(overrides: Partial<api.TicketDetail> = {}): api.
     ...overrides,
   };
 }
+
+const summary = (n: number, overrides: Partial<api.TicketSummary> = {}): api.TicketSummary => ({
+  ticketNumber: `TKT-2026-00000${n}`,
+  summary: `Ticket ${n}`,
+  currentStatus: "IN_PROGRESS",
+  itPriority: "MEDIUM",
+  updatedAt: "2026-10-30T03:00:00.000Z",
+  resolvedAt: null,
+  ...overrides,
+});
+
+export function staffDashboard(overrides: Partial<api.StaffDashboardData> = {}): api.StaffDashboardData {
+  return {
+    generatedAt: "2026-10-31T05:00:00.000Z",
+    recentWindowDays: 7,
+    metrics: {
+      new: { value: 2, query: { status: "NEW" } },
+      inProgress: { value: 4, query: { status: "IN_PROGRESS" } },
+      waitingForRequester: { value: 1, query: { status: "WAITING_FOR_REQUESTER" } },
+      reopened: { value: 1, query: { status: "REOPENED" } },
+      unassigned: { value: 3, query: { statusGroup: "active", owner: "unassigned" } },
+      mine: { value: 5, query: { statusGroup: "active", owner: "me" } },
+      highPriority: { value: 3, query: { statusGroup: "active", itPriority: "HIGH" } },
+      appearsResolved: { value: 0, query: { statusGroup: "active", appearsResolved: "true" } },
+      myOpenActions: { value: 2, query: null },
+    },
+    byStatus: { NEW: 2, OPEN: 3, IN_PROGRESS: 4, WAITING_FOR_REQUESTER: 1, RESOLVED: 2, CLOSED: 1, REOPENED: 1, CANCELLED: 1 },
+    byItPriority: { LOW: 4, MEDIUM: 3, HIGH: 3 },
+    myOpenActions: [
+      { id: 5, ticketNumber: "TKT-2026-000001", ticketSummary: "Laptop battery drains quickly", description: "Replace the battery", status: "PLANNED", actionAt: "2026-10-31T03:00:00.000Z" },
+    ],
+    urgent: [summary(2, { itPriority: "HIGH", owner: null })],
+    recentlyUpdated: [summary(3, { owner: { id: 7, name: "Emily Davis" } })],
+    ...overrides,
+  };
+}
+
+export function requesterDashboard(overrides: Partial<api.RequesterDashboardData> = {}): api.RequesterDashboardData {
+  return {
+    generatedAt: "2026-10-31T05:00:00.000Z",
+    recentWindowDays: 7,
+    metrics: {
+      open: { value: 3, query: { statusGroup: "active" } },
+      waitingForMe: { value: 1, query: { currentStatus: "WAITING_FOR_REQUESTER" } },
+      resolved: { value: 1, query: { currentStatus: "RESOLVED" } },
+      closed: { value: 12, query: { currentStatus: "CLOSED" } },
+    },
+    needsAttention: [summary(4, { currentStatus: "WAITING_FOR_REQUESTER" }), summary(5, { currentStatus: "RESOLVED" })],
+    recentlyUpdated: [summary(6)],
+    recentlyResolved: [summary(5, { currentStatus: "RESOLVED", resolvedAt: "2026-10-30T05:00:00.000Z" })],
+    ...overrides,
+  };
+}
+
+export const EMPTY_METRIC = (query: Record<string, string> | null) => ({ value: 0, query });
