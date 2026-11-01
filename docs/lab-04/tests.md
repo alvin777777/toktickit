@@ -5,7 +5,8 @@
 Tests are planned here from `specification.md` before implementation (Test DD) and written failing
 first per Issue (TDD). Every Lab 4 Acceptance Criterion (AC-01..AC-30) maps to at least one row in
 §2; every Lab 2 and Lab 3 test stays in the regression suite (§3). **Final** started as `Planned` and
-became `Pass` once the test passed on the release branch (§6).
+became `Pass` once the test passed on the integrated Lab 4 branch `integration/lab4-stack` — the
+reviewed stack plus the PR #61 review fix — which is what `lab4-staging` and then `main` receive (§6).
 
 | Type | Tool | Scope |
 |---|---|---|
@@ -42,6 +43,7 @@ and with the `totalItems` of its drill-down query.
 | API-07 | API | AC-05, BR-08, BR-09 | Edit a COMPLETED action; CANCELLED → IN_PROGRESS; IN_PROGRESS → PLANNED | 409 ACTION_FINAL; 409 ACTION_FINAL; 409 INVALID_ACTION_TRANSITION with allowed | server/tests/lab-04/actions-taken.api.test.ts | Pass |
 | API-08 | API | AC-06, BR-13 | Two PATCHes from the same version (sequential and concurrent); PATCH without version | first 200, second 409 STALE_UPDATE with `current`; 400 version | server/tests/lab-04/actions-taken.api.test.ts | Pass |
 | API-09 | API | AC-07, BR-14 | Same create sent twice sequentially and twice concurrently with one clientRequestId; reuse on another ticket | one row; 201 + 200 returning the same id; 409 DUPLICATE_REQUEST | server/tests/lab-04/actions-taken.api.test.ts | Pass |
+| API-09b | API | AC-07, BR-14 | Same clientRequestId posted concurrently to two different tickets, six rounds (review on PR #61) | one 201 and one 409 DUPLICATE_REQUEST every round; the loser never receives the other ticket's action | server/tests/lab-04/actions-taken.api.test.ts | Pass |
 | API-10 | API | AC-09, BR-10 | Create / edit on RESOLVED, CLOSED, CANCELLED Tickets | 409 TICKET_NOT_WORKABLE each | server/tests/lab-04/actions-taken.api.test.ts | Pass |
 | API-11 | API | BR-01 | PATCH an action through another Ticket's URL; unknown ticket | 404 both; action unchanged | server/tests/lab-04/actions-taken.api.test.ts | Pass |
 | SEC-01 | SEC | AC-08, BR-15 | Requester: GET/POST/PATCH staff action routes; GET own ticket actions; GET another requester's ticket actions; IT Staff on the Requester route | 403 ×3; 200 read-only list; 404; 403 | server/tests/lab-04/actions-taken.api.test.ts | Pass |
@@ -109,7 +111,7 @@ tests that asserted the Lab 3 landing page are updated to the new destination, n
 | AC-04 | API-05, UNIT-02, UI-06 |
 | AC-05 | API-06, API-07, UI-07, E2E-01 |
 | AC-06 | API-08, UI-07 |
-| AC-07 | API-09, UI-06 |
+| AC-07 | API-09, API-09b, UI-06 |
 | AC-08 | SEC-01, UI-05, E2E-01 |
 | AC-09 | API-10 |
 | AC-10 | API-12, UNIT-04, SEC-03 |
@@ -145,12 +147,13 @@ cd e2e && npm test                    # Lab 2–4 E2E + responsive (both dev ser
 
 ## 6. Final Results
 
-Run on `feature/22-final-hardening` (the full Lab 4 stack) on 2026-10-31; re-run on `main` after the
-release merge. E2E ran against a freshly migrated and seeded database (`toktickit_demo`).
+Run on `integration/lab4-stack` (all six reviewed Issues plus the PR #61 review fix) on
+2026-11-01 — the exact content merged into `lab4-staging` and released to `main`. E2E ran against a
+freshly migrated and seeded database (`toktickit_demo`).
 
 | Suite | Command | Result |
 |---|---|---|
-| Server — unit, API, SEC, MIG, PERF (Labs 1–4) | `cd server && npm test` | **26 files, 204 tests passed** (Lab 4: 66 in 6 files) |
+| Server — unit, API, SEC, MIG, PERF (Labs 1–4) | `cd server && npm test` | **26 files, 205 tests passed** (Lab 4: 67 in 6 files) |
 | Client — UI, STYLE (Labs 1–4) | `cd client && npm test` | **18 files, 106 tests passed** (Lab 4: 31 in 4 files) |
 | E2E + responsive (Labs 2–4, desktop / tablet / mobile) | `cd e2e && npm test` | **64 passed, 14 skipped, 0 failed** |
 
