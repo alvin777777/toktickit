@@ -111,9 +111,72 @@ After the merge, `lab4-staging` was checked out and verified identical to the re
 
 ## Pull Requests I reviewed (my partner's Lab 4 PRs)
 
-<!-- Fill in: PR link, scope, my summary comment, inline findings with priority, the partner's
-     response, and my final verdict. -->
+Repository: [Ohmmykung09/toktickit](https://github.com/Ohmmykung09/toktickit). Each review was done
+by reading the diff against `lab4-staging` (not by running the suites), first as a *Comment* review
+with inline findings, then re-checked against the fix commit before approving. My partner's
+second reviewer, @MacOverlorD, reviewed the same PRs; I avoided repeating findings already in
+that review.
 
-| PR | Scope | My verdict |
-|----|-------|------------|
-| _to be added_ | | |
+| PR | Scope | My review | Fix commit I re-checked | My verdict |
+|----|-------|-----------|-------------------------|------------|
+| [#60](https://github.com/Ohmmykung09/toktickit/pull/60) | Lab 4 Issues #51–#53 (Actions Taken, workflow, dashboards) | [Commented](https://github.com/Ohmmykung09/toktickit/pull/60#pullrequestreview-5367470974) 2026-09-30 — 10 inline + 5 summary findings | `4c1f53c` | [**Approved**](https://github.com/Ohmmykung09/toktickit/pull/60#pullrequestreview-5376146509) 2026-10-01 |
+| [#62](https://github.com/Ohmmykung09/toktickit/pull/62) | Final regression and E2E hardening | [Commented](https://github.com/Ohmmykung09/toktickit/pull/62#pullrequestreview-5472684297) 2026-10-09 — 4 inline findings | `f8955d5` | [**Approved**](https://github.com/Ohmmykung09/toktickit/pull/62#pullrequestreview-5472980128) 2026-10-09 |
+| [#63](https://github.com/Ohmmykung09/toktickit/pull/63) | Lab 4 evidence and release preparation (docs) | [Commented](https://github.com/Ohmmykung09/toktickit/pull/63#pullrequestreview-5478642060) 2026-10-10 — 4 inline + 2 summary findings | `f513efe` | [**Approved**](https://github.com/Ohmmykung09/toktickit/pull/63#pullrequestreview-5479236286) 2026-10-10 |
+
+### PR #60 — my review
+> Nice work getting #51, #52 and #53 into one PR. I read through the diff against `lab4-staging`
+> (code reading only, I did not run it) and left 10 inline comments. The first four on
+> `ActionsTakenPanel.tsx` are bugs users will hit, so I'd fix those before merging; the rest are
+> smaller or spec gaps.
+
+Findings: timezone shift in the Action date input; no reload after a stale write; idempotency key
+not kept across retries; status select not limited to allowed transitions; success message
+overwriting a load error; one empty-state text reused for every dashboard list; Follow-up Note
+always visible (ui-spec says it appears when checked); `label()` duplicated in three files; the
+staff-dashboard 403 test asserting only the status and no Administrator access test (#53);
+inactive assignee shown as "Unassigned" in the edit select.
+
+**Partner's response / my re-check (`4c1f53c`)** — fixed: timezone, stale-write reload, retry key,
+allowed transitions + confirm (matching the server's `actionTransitions`), message precedence,
+initial `actions` state, dashboard drill-downs, per-list empty text, shared `label()`,
+Administrator access test. Left as agreed follow-ups: the unbounded urgent-ticket query and the
+duplicated Actions Taken select. One small regression noted inline (hidden Follow-up Note kept its
+value). **Approved.**
+
+### PR #62 — my review
+> Good coverage push overall. The three Lab 4 flows read clearly, the deterministic fixtures are a
+> big improvement, and fixing the Lab 2 E2E to use real sign-in was overdue.
+
+Inline findings: **(1)** planned tests (incl. AUTH-01, the only coverage of BR-28 Origin/CSRF on
+the new mutation endpoints) were deleted from `tests.md` instead of delivered; **(2)** the 10k/50k
+performance smoke ran in the default server suite against the dev database in parallel, where it
+could break baseline-delta tests; **(3)** the E2E browser-error filters ignored every 409 / 503 for
+the whole test; **(4)** the `MyTickets` `key` change was a real product fix inside a test PR — worth
+describing and covering with a client test.
+
+**My re-check (`f8955d5`)** — all four done: missing-Origin / wrong-CSRF-token tests on Action
+create and Ticket status (403 `CSRF_REJECTED`, nothing persisted) with the row restored in
+`tests.md`; perf smoke behind `LAB4_PERF=1` with its own `test:perf:lab4` script in the isolated
+schema; expected errors matched by URL and status; a client test that `resolvedSince` is dropped
+after returning to My Tickets. **Approved.**
+
+### PR #63 — my review
+> Thanks for pulling the whole Lab 4 trail together. The issue-to-PR table and the explicit "no
+> final-main claim yet" wording are good.
+
+Findings (checked against the GitHub API): **(1)** the PR #60 record in `reviewer.md` mixed up
+reviewers, states, and dates, and listed three still-open items as addressed (urgent-query bound,
+shared action select, clearing the follow-up note); **(2)** the release command would open the
+release PR with a stale verification section, and two release bodies disagreed; **(3)** `ai-use.md`
+replaced the specification-stage prompts instead of appending; **(4)** the evidence renderer
+silently dropped cards with an unknown status. Also: two mobile screenshots not refreshed with
+the rest, and a duplicate PR-body file that would go stale.
+
+**Partner's response** — replied on every thread with the fix
+([e.g. reviewer.md](https://github.com/Ohmmykung09/toktickit/blob/f513efef01c67db44220a02828e5c3ddd2a0b67a/docs/lab-04/reviewer.md)).
+**My re-check (`f513efe`)** — #60 record corrected with both reviewers' real states and links, the
+three items recorded as deferred; one placeholder-checked release template, duplicate file
+removed; the six specification-stage prompt rows restored; the renderer throws on unknown status;
+capture provenance documented. I also noted that `tests.md` honestly records the PR #63 gate as
+**exit 1** (Playwright never started, port 3000 taken), so a clean E2E run is still owed on the
+release candidate. **Approved** (docs only, no application code).
