@@ -257,6 +257,26 @@ describe("idempotent create", () => {
   });
 });
 
+// API-09b (AC-07, BR-14) — review on PR #61: the unique-index race path must check the ticket too.
+describe("idempotent create across tickets under a race", () => {
+  it("never returns another ticket's action: concurrent reuse on two tickets is one 201 and one 409", async () => {
+    for (let round = 0; round < 6; round++) {
+      const [tnA, tnB] = await Promise.all([newTicket(requester, `Lab 4 race A ${round}`), newTicket(requester, `Lab 4 race B ${round}`)]);
+      const clientRequestId = randomUUID();
+      const [a, b] = await Promise.all([
+        postAction(staff, tnA, validAction({ clientRequestId, description: "Race on A" })),
+        postAction(staffB, tnB, validAction({ clientRequestId, description: "Race on B" })),
+      ]);
+      expect([a.status, b.status].sort(), `round ${round}`).toEqual([201, 409]);
+      const loser = a.status === 409 ? a : b;
+      expect(loser.body.code).toBe("DUPLICATE_REQUEST");
+      expect(loser.body).not.toHaveProperty("id"); // no other ticket's action leaks
+      const total = await getPrisma().actionTaken.count({ where: { clientRequestId } });
+      expect(total).toBe(1);
+    }
+  });
+});
+
 // API-10 (AC-09, BR-10)
 describe("ticket must be workable", () => {
   it("refuses creates and edits on Resolved, Closed, and Cancelled tickets", async () => {

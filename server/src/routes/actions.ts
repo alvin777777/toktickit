@@ -70,21 +70,25 @@ staffActionsRouter.post("/", async (req: Request, res: Response) => {
   const body = (req.body ?? {}) as Record<string, unknown>;
   const actorId = req.user!.id;
   const prisma = getPrisma();
+  const clientRequestId = typeof body.clientRequestId === "string" && CLIENT_REQUEST_ID.test(body.clientRequestId) ? body.clientRequestId : null;
+  let ticketId: number | null = null;
+  // BR-14 — a replayed create returns the action it already made, but only for the same Ticket.
+  // Used both before creating and after losing the unique-index race (review on PR #61: the race
+  // path returned the winner's action even when it belonged to another Ticket).
+  const replay = async () => {
+    if (!clientRequestId) return null;
+    const existing = await prisma.actionTaken.findUnique({ where: { clientRequestId }, include: actionInclude });
+    if (!existing) return null;
+    if (existing.ticketId !== ticketId) {
+      throw new HttpError(409, { error: "This request was already used for another ticket.", code: "DUPLICATE_REQUEST" });
+    }
+    return existing;
+  };
   try {
     const ticket = await findTicket(req.params.ticketNumber);
     if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    ticketId = ticket.id;
 
-    const clientRequestId = typeof body.clientRequestId === "string" && CLIENT_REQUEST_ID.test(body.clientRequestId) ? body.clientRequestId : null;
-    // BR-14 — a replayed create returns the action it already made.
-    const replay = async () => {
-      if (!clientRequestId) return null;
-      const existing = await prisma.actionTaken.findUnique({ where: { clientRequestId }, include: actionInclude });
-      if (!existing) return null;
-      if (existing.ticketId !== ticket.id) {
-        throw new HttpError(409, { error: "This request was already used for another ticket.", code: "DUPLICATE_REQUEST" });
-      }
-      return existing;
-    };
     const previous = await replay();
     if (previous) return res.status(200).json(serializeAction(previous));
 
@@ -120,13 +124,14 @@ staffActionsRouter.post("/", async (req: Request, res: Response) => {
     });
     res.status(201).json(serializeAction(created));
   } catch (err) {
-    // BR-14 — two simultaneous replays: the loser hits the unique index and returns the winner's row.
+    // BR-14 — two simultaneous submissions: the loser hits the unique index. Same Ticket → return
+    // the winner's row (200); another Ticket → 409 DUPLICATE_REQUEST, never the other Ticket's action.
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       try {
-        const existing = await prisma.actionTaken.findUnique({ where: { clientRequestId: String(body.clientRequestId) }, include: actionInclude });
+        const existing = await replay();
         if (existing) return res.status(200).json(serializeAction(existing));
-      } catch {
-        /* fall through to the safe 500 */
+      } catch (replayErr) {
+        return send(res, replayErr, "Unable to save action");
       }
     }
     send(res, err, "Unable to save action");
