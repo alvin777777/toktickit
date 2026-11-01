@@ -6,7 +6,10 @@ PostgreSQL — proving the full stack works together end to end. Lab 2 added the
 ticketing MVP (Create Ticket, My Tickets, Ticket Detail, Attachments). Lab 3 replaces the temporary
 Development Requester selector with real email/password login, server-side sessions, and three
 roles — Requester, IT Staff, Administrator — plus the IT Staff Ticket Queue / Ticket Detail workflow
-and Administrator User Management.
+and Administrator User Management. Lab 4 completes the workflow: IT Staff record **Actions Taken**
+under each Ticket, the backend only lets a Ticket be **Resolved** once that work supports it,
+every status change is kept in an append-only **history**, and every role starts on a **Dashboard**
+whose numbers link to the filtered lists.
 
 ## Tech stack
 
@@ -26,16 +29,19 @@ toktickit/
 │   ├── prisma/
 │   ├── src/
 │   └── tests/
-│       ├── lab-01/
-│       └── lab-02/
+│       ├── lab-01/ … lab-04/
+│       ├── helpers/    auth + ticket helpers shared by the API tests
+│       └── setup.ts    test-only Supertest transport fix (see docs/lab-04/tests.md §7)
 ├── docs/
 │   ├── lab-01/         ai_use.md, reviewer.md, tests.md
 │   ├── lab-02/         specification.md, api-spec.md, ui-spec.md, tests.md, reviewer.md, ai-use.md
-│   └── lab-03/         specification.md, api-spec.md, ui-spec.md, tests.md, reviewer.md, ai-use.md
-├── e2e/                Playwright E2E + responsive/visual QA (lab-02/, lab-03/)
+│   ├── lab-03/         specification.md, api-spec.md, ui-spec.md, tests.md, reviewer.md, ai-use.md
+│   └── lab-04/         specification.md, api-spec.md, ui-spec.md, tests.md, reviewer.md, ai-use.md
+├── e2e/                Playwright E2E + responsive/visual QA (lab-02/, lab-03/, lab-04/)
 ├── artifacts/
 │   ├── lab-02/screenshots/   desktop/tablet/mobile screenshots from the Lab 2 E2E suite
-│   └── lab-03/screenshots/   authentication / staff-queue / staff-ticket-detail / user-management
+│   ├── lab-03/screenshots/   authentication / staff-queue / staff-ticket-detail / user-management
+│   └── lab-04/screenshots/   staff-dashboard / requester-dashboard / actions-taken
 ├── .gitignore
 └── README.md
 ```
@@ -87,8 +93,39 @@ to POST/PATCH/DELETE requests.
 
 ```bash
 cd server
-npx prisma migrate dev   # applies all migrations (Lab 3 renames RequesterUser → User in place)
+npx prisma migrate dev   # applies all migrations (Lab 3 renames RequesterUser → User in place;
+                         # Lab 4 adds ActionTaken, TicketStatusHistory, Ticket.version/resolvedAt)
 npm run prisma:seed      # idempotent — safe to re-run any time; resets seeded accounts/passwords
+```
+
+### Lab 4 migration and rollback
+
+`20261031100000_lab4_actions_taken` is additive: it creates the Actions Taken and status-history
+tables, adds `Ticket.version` and `Ticket.resolvedAt`, and back-fills legacy rows (one history row
+per existing Ticket, `resolvedAt` for Resolved/Closed ones). Existing Tickets simply have no
+actions yet; they must get a completed action before they can next be resolved.
+
+To roll it back (Lab 4 data is lost, so take a `pg_dump` first):
+
+```bash
+cd server
+docker exec -i toktickit-db psql -U toktickit -d toktickit < prisma/rollback/20261031100000_lab4_actions_taken.down.sql
+npx prisma migrate resolve --rolled-back 20261031100000_lab4_actions_taken
+```
+
+Up → down → up is tested on a scratch database by `server/tests/lab-04/migration.api.test.ts`.
+
+### A clean database for demos and E2E (optional)
+
+The automated tests add many Tickets to the dev database. For a demo or the E2E suite you can use a
+separate, freshly seeded database without touching your dev data:
+
+```bash
+docker exec toktickit-db psql -U toktickit -c "DROP DATABASE IF EXISTS toktickit_demo" -c "CREATE DATABASE toktickit_demo"
+cd server
+export DATABASE_URL="postgresql://toktickit:toktickit@localhost:5434/toktickit_demo?schema=public"
+npx prisma migrate deploy && npm run prisma:seed
+npm run dev              # this terminal's server now uses toktickit_demo
 ```
 
 ### Seeded accounts (local development only)
@@ -123,8 +160,23 @@ cd client && npm run dev
 ```
 
 Open http://localhost:5173 in a browser. It redirects to **Sign in** — use one of the seeded
-accounts above. Requesters land on My Tickets, IT Staff on the Ticket Queue, Administrators on
-Users (see [docs/lab-03/ui-spec.md](docs/lab-03/ui-spec.md) §2).
+accounts above. Since Lab 4 every role lands on its **Dashboard** (see
+[docs/lab-04/ui-spec.md](docs/lab-04/ui-spec.md) §2).
+
+### Lab 4 demo walkthrough (seeded data)
+
+1. **IT Staff** — sign in as `emily.davis@toktickit.dev`. The Dashboard shows the operational cards;
+   click **Unassigned** to open the Queue already filtered.
+2. Open **TKT-2026-000001** ("Laptop battery drains quickly"): Actions Taken lists three actions by
+   two staff members, one needing follow-up and one planned. The Status control does not offer
+   *Resolved*, and the "To resolve this ticket" checklist says why.
+3. Edit the planned action → **Start** → **Complete** (Result is required), then add an action
+   without follow-up: *Resolved* becomes available. Resolve and check the **History** tab.
+4. **Requester** — sign in as `jennifer.anderson@toktickit.dev`: Dashboard cards (*Waiting for Me*,
+   *Resolved*, …) open My Tickets filtered; the Ticket shows its Actions Taken and status history,
+   read-only.
+5. **Administrator** — `john.smith@toktickit.dev` sees the same operational dashboard plus user
+   account counts linking to Users.
 
 ## 6. Run automated tests
 
@@ -133,7 +185,7 @@ cd server && npm test
 cd client && npm test
 ```
 
-## 7. Run the E2E / responsive-visual suite (Lab 2 + Lab 3)
+## 7. Run the E2E / responsive-visual suite (Labs 2–4)
 
 Requires both dev servers from step 5 running, and the DB seeded (step 4).
 
@@ -147,7 +199,10 @@ npm test
 This runs the Lab 2 suite (`e2e/lab-02/` — Requester flow and responsive checks, now signing in as
 a seeded Requester) and the Lab 3 suite (`e2e/lab-03/` — authentication and first-login password
 change, IT Staff ticket flow, user administration, and responsive screenshots saved to
-`artifacts/lab-03/screenshots/`) at desktop, tablet, and mobile viewport widths.
+`artifacts/lab-03/screenshots/`) at desktop, tablet, and mobile viewport widths, and the Lab 4
+suite (`e2e/lab-04/` — Actions Taken flow, resolution gate, dashboards incl. keyboard checks, and
+responsive screenshots saved to `artifacts/lab-04/screenshots/`). Run it against a freshly seeded
+database (see "A clean database" above) for predictable screenshots.
 
 ## Git workflow
 

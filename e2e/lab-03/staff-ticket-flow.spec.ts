@@ -52,6 +52,14 @@ test.describe("IT Staff ticket flow", () => {
     await staffPage.getByRole("button", { name: /post comment/i }).click();
     await expect(staffPage.getByTestId("public-comments")).toContainText("We replaced the battery");
 
+    // Lab 4 (BR-20, BR-38): resolving needs recorded, completed work — record it as an Action Taken.
+    await staffPage.getByRole("tab", { name: /actions taken/i }).click();
+    await staffPage.getByRole("button", { name: "+ Add Action" }).click();
+    await staffPage.getByLabel("Action Description").fill("Replaced the laptop battery.");
+    await staffPage.getByLabel(/^Result/).fill("Battery holds charge for 8 hours.");
+    await staffPage.getByRole("button", { name: "Save Action" }).click();
+    await expect(staffPage.getByText("Action saved.")).toBeVisible(); // the form has closed and the ticket refreshed
+
     // Resolved → Closed with confirmation (AC-18, BR-31)
     await staffPage.getByLabel(/^Status/i).selectOption("RESOLVED");
     await staffPage.getByRole("button", { name: /update status/i }).click();
@@ -67,7 +75,8 @@ test.describe("IT Staff ticket flow", () => {
     // --- Requester sees the public comment and the closed status, never the internal note ---
     await page.goto(`/tickets/${ticketNumber}`);
     await expect(page.getByTestId("public-comments")).toContainText("We replaced the battery");
-    await expect(page.getByText("Closed", { exact: true })).toBeVisible();
+    // .first(): the current-status badge; Lab 4's status history below repeats the status names.
+    await expect(page.getByText("Closed", { exact: true }).first()).toBeVisible();
     await expect(page.locator("#detail-owner")).toHaveValue("Emily Davis"); // Ticket Owner
     await expect(page.getByText(secret)).toHaveCount(0);
     await expect(page.locator("body")).not.toContainText("Internal Notes");
@@ -86,7 +95,7 @@ test.describe("IT Staff ticket flow", () => {
     await page.getByRole("button", { name: /problem appears resolved/i }).click();
     await page.getByRole("button", { name: /yes, it appears resolved/i }).click();
     await expect(page.getByTestId("resolved-chip")).toBeVisible();
-    await expect(page.getByText("New", { exact: true })).toBeVisible(); // status unchanged (BR-32)
+    await expect(page.getByText("New", { exact: true }).first()).toBeVisible(); // status unchanged (BR-32); .first() = current status, not history
 
     const staffPage = await browser.newPage();
     await loginExpectingHome(staffPage, ACCOUNTS.staff, /\/staff\/queue$/);

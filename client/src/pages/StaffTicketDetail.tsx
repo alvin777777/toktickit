@@ -1,30 +1,47 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   ApiError,
   Assignee,
   Priority,
+  ResolutionBlocker,
   StaffTicket,
   TicketStatus,
   claimTicket,
+  createAction,
   downloadAttachment,
   getAssignees,
   getComments,
   getInternalNotes,
+  getStaffActions,
   getStaffTicket,
   postComment,
   postInternalNote,
   setItPriority,
   setTicketOwner,
   setTicketStatus,
+  updateAction,
 } from "../api.js";
 import { useAuth } from "../context/AuthContext.js";
 import { PRIORITY_BADGE, STATUS_LABEL, StatusBadge } from "../components/badges.js";
 import EntryThread from "../components/EntryThread.js";
 import ConfirmBox from "../components/ConfirmBox.js";
+import StatusHistory from "../components/StatusHistory.js";
+import ActionsTaken from "../components/ActionsTaken.js";
 
 type LoadState = "loading" | "success" | "notFound" | "error";
-type Tab = "comments" | "notes" | "attachments";
+type Tab = "actions" | "comments" | "notes" | "attachments" | "history";
+const TABS: Tab[] = ["actions", "comments", "notes", "attachments", "history"];
+
+// docs/lab-04/ui-spec.md §6 — the resolution checklist (BR-20), one line per requirement.
+const GATE_ITEMS: { key: ResolutionBlocker; label: string }[] = [
+  { key: "OWNER_REQUIRED", label: "A ticket owner is assigned" },
+  { key: "NO_COMPLETED_ACTION", label: "At least one action is completed" },
+  { key: "OPEN_ACTIONS", label: "No action is still planned or in progress" },
+  { key: "FOLLOW_UP_PENDING", label: "The latest completed action needs no follow-up" },
+];
+const CAN_REACH_RESOLVED: TicketStatus[] = ["IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"];
+const STALE_MESSAGE = "Someone else updated this ticket. Review the latest values and try again.";
 
 const readonlyField = { backgroundColor: "#F3F1EA" };
 const CONFIRM_TEXT: Partial<Record<TicketStatus, { title: string; message: string }>> = {
@@ -36,10 +53,13 @@ const CONFIRM_TEXT: Partial<Record<TicketStatus, { title: string; message: strin
 export default function StaffTicketDetail() {
   const { ticketNumber = "" } = useParams<{ ticketNumber: string }>();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [ticket, setTicket] = useState<StaffTicket | null>(null);
   const [assignees, setAssignees] = useState<Assignee[]>([]);
-  const [tab, setTab] = useState<Tab>("comments");
+  // ui-spec.md §5 — ?tab= opens a tab directly (dashboard links use ?tab=actions).
+  const requestedTab = searchParams.get("tab") as Tab | null;
+  const [tab, setTab] = useState<Tab>(requestedTab && TABS.includes(requestedTab) ? requestedTab : "actions");
 
   // Owner control
   const [ownerMode, setOwnerMode] = useState<"view" | "reassign">("view");
@@ -81,7 +101,23 @@ export default function StaffTicketDetail() {
     setTicket(updated);
   }
 
+  // After an Action Taken changes, the gate, counts, and allowed transitions change with it; refresh
+  // the ticket quietly (no loading screen) so the Operations card stays truthful (BR-21).
+  async function refreshTicket() {
+    try {
+      const latest = await getStaffTicket(ticketNumber);
+      if (latest) setTicket(latest);
+    } catch {
+      /* the next workflow action reports any failure */
+    }
+  }
+
   function describe(err: unknown, fallback: string): string {
+    // Lab 4 BR-25 — someone changed the ticket first: show their version, never overwrite it.
+    if (err instanceof ApiError && err.code === "STALE_UPDATE") {
+      if (err.current) setTicket(err.current as StaffTicket);
+      return STALE_MESSAGE;
+    }
     if (err instanceof ApiError && (err.status === 409 || err.status === 400)) {
       const field = Object.values(err.fields)[0];
       return field ?? err.message;
@@ -93,7 +129,7 @@ export default function StaffTicketDetail() {
     setOwnerError("");
     setOwnerBusy(true);
     try {
-      applyUpdate(await claimTicket(ticketNumber));
+      applyUpdate(await claimTicket(ticketNumber, ticket?.version));
     } catch (err) {
       setOwnerError(describe(err, "Unable to claim this ticket right now. Please try again."));
       if (err instanceof ApiError && err.code === "ALREADY_ASSIGNED") {
@@ -109,7 +145,7 @@ export default function StaffTicketDetail() {
     setOwnerError("");
     setOwnerBusy(true);
     try {
-      applyUpdate(await setTicketOwner(ticketNumber, ownerChoice === "" ? null : Number(ownerChoice)));
+      applyUpdate(await setTicketOwner(ticketNumber, ownerChoice === "" ? null : Number(ownerChoice), ticket?.version));
       setOwnerMode("view");
     } catch (err) {
       setOwnerError(describe(err, "Unable to change the ticket owner right now. Please try again."));
@@ -123,7 +159,7 @@ export default function StaffTicketDetail() {
     setActionError("");
     setPriorityBusy(true);
     try {
-      applyUpdate(await setItPriority(ticketNumber, value));
+      applyUpdate(await setItPriority(ticketNumber, value, ticket?.version));
       setPriorityNote("Saved");
     } catch (err) {
       setActionError(describe(err, "Unable to update IT priority right now. Please try again."));
@@ -145,13 +181,14 @@ export default function StaffTicketDetail() {
   async function commitStatus(status: TicketStatus) {
     setStatusBusy(true);
     try {
-      applyUpdate(await setTicketStatus(ticketNumber, status));
+      applyUpdate(await setTicketStatus(ticketNumber, status, ticket?.version));
       setStatusChoice("");
       setConfirmStatus(null);
     } catch (err) {
       setStatusError(describe(err, "Unable to update the status right now. Please try again."));
       setConfirmStatus(null);
-      if (err instanceof ApiError && err.code === "INVALID_TRANSITION") await load();
+      // The server's view differs from ours (another tab, a colleague): refresh what is offered.
+      if (err instanceof ApiError && (err.code === "INVALID_TRANSITION" || err.code === "RESOLUTION_BLOCKED")) await load();
     } finally {
       setStatusBusy(false);
     }
@@ -421,6 +458,22 @@ export default function StaffTicketDetail() {
                   {statusError}
                 </div>
               )}
+              {!ticket.resolution.canResolve && CAN_REACH_RESOLVED.includes(ticket.currentStatus) && (
+                <div className="mt-2 small" data-testid="resolve-checklist">
+                  <div className="fw-semibold mb-1">To resolve this ticket</div>
+                  <ul className="list-unstyled mb-0">
+                    {GATE_ITEMS.map(({ key, label }) => {
+                      const missing = ticket.resolution.blockers.includes(key);
+                      return (
+                        <li key={key} className={missing ? "text-danger" : "text-success"}>
+                          <span aria-hidden="true">{missing ? "✗" : "✓"}</span> {label}{" "}
+                          <span className="visually-hidden">{missing ? "(missing)" : "(done)"}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -430,9 +483,11 @@ export default function StaffTicketDetail() {
       <ul className="nav nav-tabs mb-3 flex-nowrap overflow-auto" role="tablist">
         {(
           [
+            ["actions", `Actions Taken (${ticket.actionCounts.total})`],
             ["comments", "Public Comments"],
             ["notes", "Internal Notes"],
             ["attachments", `Attachments (${activeAttachments.length})`],
+            ["history", "History"],
           ] as [Tab, string][]
         ).map(([key, label]) => (
           <li className="nav-item" role="presentation" key={key}>
@@ -448,6 +503,17 @@ export default function StaffTicketDetail() {
         ))}
       </ul>
 
+      {tab === "actions" && (
+        <ActionsTaken
+          load={() => getStaffActions(ticket.ticketNumber)}
+          workable={["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"].includes(ticket.currentStatus)}
+          assignees={assignees}
+          currentUserId={user?.id}
+          create={(input) => createAction(ticket.ticketNumber, input)}
+          update={(id, input) => updateAction(ticket.ticketNumber, id, input)}
+          onChanged={refreshTicket}
+        />
+      )}
       {tab === "comments" && (
         <EntryThread
           kind="comment"
@@ -464,6 +530,13 @@ export default function StaffTicketDetail() {
           load={() => getInternalNotes(ticket.ticketNumber)}
           post={(body) => postInternalNote(ticket.ticketNumber, body)}
         />
+      )}
+      {tab === "history" && (
+        <div className="card shadow-sm">
+          <div className="card-body">
+            <StatusHistory entries={ticket.statusHistory} />
+          </div>
+        </div>
       )}
       {tab === "attachments" && (
         <div data-testid="attachments">

@@ -67,16 +67,10 @@ export function useAuth(): AuthContextValue {
   return ctx;
 }
 
-// ui-spec.md §2 — where each role lands after login / on "/".
-export function roleHome(role: AuthUser["role"]): string {
-  switch (role) {
-    case "IT_STAFF":
-      return "/staff/queue";
-    case "ADMIN":
-      return "/admin/users";
-    default:
-      return "/tickets";
-  }
+// ui-spec.md §2 — where each role lands after login / on "/". Lab 4 (BR-38): every role starts on
+// its Dashboard; the Lab 3 landing pages stay one click away in the navigation.
+export function roleHome(_role: AuthUser["role"]): string {
+  return "/dashboard";
 }
 
 export const ROLE_LABEL: Record<AuthUser["role"], string> = {

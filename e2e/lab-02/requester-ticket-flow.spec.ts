@@ -8,6 +8,9 @@ async function loginAs(page: Page, email: string) {
   await page.getByLabel(/email address/i).fill(email);
   await page.getByLabel(/^password/i).fill("Password123!");
   await page.getByRole("button", { name: /sign in/i }).click();
+  // Lab 4 (BR-38): every role now lands on its Dashboard; this Lab 2 flow continues from My Tickets.
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto("/tickets");
   await expect(page).toHaveURL(/\/tickets$/);
 }
 

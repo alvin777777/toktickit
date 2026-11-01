@@ -4,13 +4,19 @@ import { ROLE_LABEL, useAuth } from "../context/AuthContext.js";
 import { Role } from "../api.js";
 
 // ui-spec.md §2 — Application Shell with role-specific navigation (FR-06).
+// Lab 4 (ui-spec.md §2): Dashboard comes first for every role.
 const NAV_BY_ROLE: Record<Role, { to: string; label: string }[]> = {
   REQUESTER: [
+    { to: "/dashboard", label: "Dashboard" },
     { to: "/tickets", label: "My Tickets" },
     { to: "/tickets/new", label: "Create Ticket" },
   ],
-  IT_STAFF: [{ to: "/staff/queue", label: "Ticket Queue" }],
+  IT_STAFF: [
+    { to: "/dashboard", label: "Dashboard" },
+    { to: "/staff/queue", label: "Ticket Queue" },
+  ],
   ADMIN: [
+    { to: "/dashboard", label: "Dashboard" },
     { to: "/staff/queue", label: "Ticket Queue" },
     { to: "/admin/users", label: "Users" },
   ],
@@ -39,7 +45,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
     <div className="d-flex flex-column min-vh-100">
       <nav className="navbar navbar-expand-md navbar-dark" style={{ backgroundColor: "#006B3C" }}>
         <div className="container-fluid">
-          <span className="navbar-brand fw-semibold">TokTickIT</span>
+          <Link to="/dashboard" className="navbar-brand fw-semibold">
+            TokTickIT
+          </Link>
           <button
             className="navbar-toggler"
             type="button"
@@ -59,6 +67,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
                     to={item.to}
                     end={item.to === "/tickets"}
                     className={({ isActive }) => "nav-link" + (isActive ? " fw-bold text-white" : " text-white-50")}
+                    // Non-colour active cue (ui-spec.md §2); NavLink also sets aria-current="page".
+                    style={({ isActive }) => (isActive ? { boxShadow: "inset 0 -2px 0 #fff" } : undefined)}
                   >
                     {item.label}
                   </NavLink>

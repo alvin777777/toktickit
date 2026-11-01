@@ -41,7 +41,7 @@ test.describe("User administration", () => {
     await userPage.getByLabel(/^new password/i).fill("Stronger123");
     await userPage.getByLabel(/confirm new password/i).fill("Stronger123");
     await userPage.getByRole("button", { name: /continue/i }).click();
-    await expect(userPage).toHaveURL(/\/staff\/queue$/); // IT Staff home
+    await expect(userPage).toHaveURL(/\/dashboard$/); // home for every role since Lab 4 (BR-38)
     await userPage.close();
 
     // Edit role (AC-25)

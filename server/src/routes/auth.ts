@@ -9,7 +9,7 @@ import {
   hashToken,
   setSessionCookie,
 } from "../services/session.js";
-import { requireAuth, serializeUser } from "../middleware/auth.js";
+import { requireAuth, serializeUser, sessionUser } from "../middleware/auth.js";
 
 export const authRouter = Router();
 
@@ -76,6 +76,22 @@ authRouter.post("/logout", async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 authRouter.get("/me", requireAuth, (req: Request, res: Response) => {
   res.status(200).json({ user: req.user });
+});
+
+// ---------------------------------------------------------------------------
+// Lab 4 api-spec.md §4 — GET /api/auth/session: the client's boot-time probe. Same lookup as /me,
+// but "nobody is signed in" is a normal answer (200, user null) instead of a 401, so opening the
+// sign-in page no longer logs a failed request in the browser console (Lab 4 FR-18). /me keeps its
+// Lab 3 contract (401 when unauthenticated, L3 AC-07).
+// ---------------------------------------------------------------------------
+authRouter.get("/session", async (req: Request, res: Response) => {
+  try {
+    const found = await sessionUser(req);
+    if (!found && (req.cookies as Record<string, string> | undefined)?.[SESSION_COOKIE]) clearSessionCookie(res);
+    res.status(200).json({ user: found?.user ?? null });
+  } catch {
+    res.status(500).json({ error: "Unable to verify session" });
+  }
 });
 
 // ---------------------------------------------------------------------------

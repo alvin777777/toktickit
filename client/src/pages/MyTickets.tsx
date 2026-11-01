@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Category, TicketListItem, getCategories, getMyTickets } from "../api.js";
 import { ALL_STATUSES, PRIORITY_BADGE, STATUS_LABEL, StatusBadge } from "../components/badges.js";
 
@@ -9,6 +9,9 @@ type SortField = "createdAt" | "requestedPriority" | "currentStatus";
 // ui-spec.md §5.4 — My Tickets screen.
 export default function MyTickets() {
   const navigate = useNavigate();
+  // Lab 4 BR-35 — dashboard drill-downs arrive with their filters in the URL; read them once.
+  const [params] = useSearchParams();
+  const initial = (key: string) => params.get(key) ?? "";
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -21,14 +24,15 @@ export default function MyTickets() {
   // overwrite the result of a newer one (AC-11). Bumped at the start of every load() call.
   const requestIdRef = useRef(0);
 
-  const [search, setSearch] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [requestedPriority, setRequestedPriority] = useState("");
-  const [currentStatus, setCurrentStatus] = useState("");
+  const [search, setSearch] = useState(initial("search"));
+  const [categoryId, setCategoryId] = useState(initial("categoryId"));
+  const [requestedPriority, setRequestedPriority] = useState(initial("requestedPriority"));
+  const [currentStatus, setCurrentStatus] = useState(initial("currentStatus"));
+  const [statusGroup, setStatusGroup] = useState(initial("statusGroup") === "active" ? "active" : "");
   const [sortBy, setSortBy] = useState<SortField>("createdAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
-  const filtersActive = Boolean(search || categoryId || requestedPriority || currentStatus);
+  const filtersActive = Boolean(search || categoryId || requestedPriority || currentStatus || statusGroup);
 
   useEffect(() => {
     getCategories()
@@ -41,7 +45,7 @@ export default function MyTickets() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, categoryId, requestedPriority, currentStatus, sortBy, sortDir, page]);
+  }, [search, categoryId, requestedPriority, currentStatus, statusGroup, sortBy, sortDir, page]);
 
   async function load() {
     const requestId = ++requestIdRef.current;
@@ -52,6 +56,7 @@ export default function MyTickets() {
         categoryId: categoryId ? Number(categoryId) : undefined,
         requestedPriority: requestedPriority || undefined,
         currentStatus: currentStatus || undefined,
+        statusGroup: statusGroup || undefined,
         sortBy,
         sortDir,
         page,
@@ -83,6 +88,7 @@ export default function MyTickets() {
     setCategoryId("");
     setRequestedPriority("");
     setCurrentStatus("");
+    setStatusGroup("");
     setPage(1);
   }
 
@@ -106,6 +112,14 @@ export default function MyTickets() {
         </Link>
       </div>
 
+      {statusGroup && !currentStatus && (
+        <div className="mb-2" data-testid="drilldown-chips">
+          <span className="badge rounded-pill text-bg-light border d-inline-flex align-items-center gap-1">
+            Showing: Open tickets
+            <button type="button" className="btn-close btn-close-sm" style={{ fontSize: "0.6rem" }} aria-label="Show all statuses" onClick={() => { setStatusGroup(""); setPage(1); }} />
+          </span>
+        </div>
+      )}
       {!showEmpty && (
         <div className="row g-2 mb-3">
           <div className="col-12 col-lg-4">

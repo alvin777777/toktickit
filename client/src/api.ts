@@ -9,12 +9,19 @@ export class ApiError extends Error {
   code?: string;
   fields: Record<string, string>;
   allowed?: string[];
-  constructor(status: number, body: { error?: string; code?: string; fields?: Record<string, string>; allowed?: string[] } | null) {
+  blockers?: string[]; // Lab 4 — RESOLUTION_BLOCKED
+  current?: unknown; // Lab 4 — STALE_UPDATE carries the server's latest copy
+  constructor(
+    status: number,
+    body: { error?: string; code?: string; fields?: Record<string, string>; allowed?: string[]; blockers?: string[]; current?: unknown } | null
+  ) {
     super(body?.error ?? "Request failed");
     this.status = status;
     this.code = body?.code;
     this.fields = body?.fields ?? {};
     this.allowed = body?.allowed;
+    this.blockers = body?.blockers;
+    this.current = body?.current;
   }
 }
 
@@ -33,7 +40,7 @@ async function readBody(res: Response) {
 // screen showing a generic failure while looking signed in (review on PR #40). Login's own 401
 // (wrong credentials) and the boot-time /me probe are not session loss and stay silent.
 export const UNAUTHENTICATED_EVENT = "toktickit:unauthenticated";
-const SILENT_401 = new Set(["/api/auth/login", "/api/auth/me"]);
+const SILENT_401 = new Set(["/api/auth/login", "/api/auth/me", "/api/auth/session"]);
 
 export function announceUnauthenticated(path: string) {
   if (SILENT_401.has(path)) return;
@@ -100,15 +107,12 @@ export async function logout(): Promise<void> {
   await apiFetch<void>("/api/auth/logout", { method: "POST" });
 }
 
-// Returns null (instead of throwing) when there is no session, so the app can boot quietly.
+// Returns null when there is no session, so the app can boot quietly. Lab 4: uses
+// GET /api/auth/session, which answers 200 { user: null } instead of a 401, so the sign-in page
+// no longer leaves a failed request in the browser console (docs/lab-04/specification.md FR-18).
 export async function getCurrentUser(): Promise<AuthUser | null> {
-  try {
-    const body = await apiFetch<{ user: AuthUser }>("/api/auth/me");
-    return body.user;
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 401) return null;
-    throw err;
-  }
+  const body = await apiFetch<{ user: AuthUser | null }>("/api/auth/session");
+  return body.user;
 }
 
 export async function changePassword(input: {
@@ -224,6 +228,7 @@ export interface TicketListQuery {
   categoryId?: number;
   requestedPriority?: string;
   currentStatus?: string;
+  statusGroup?: string; // Lab 4 BR-35 — "active"
   sortBy?: string;
   sortDir?: "asc" | "desc";
   page?: number;
@@ -270,7 +275,18 @@ export interface TicketDetail {
   currentStatus: TicketStatus;
   owner: { id: number; name: string } | null; // FR-12
   requesterResolvedAt: string | null;
+  resolvedAt: string | null; // Lab 4 BR-23
+  statusHistory: StatusHistoryEntry[]; // Lab 4 BR-24
   attachments: AttachmentInfo[];
+}
+
+// Lab 4 — append-only status history (docs/lab-04/api-spec.md §0). changedBy null = migration.
+export interface StatusHistoryEntry {
+  id: number;
+  fromStatus: TicketStatus | null;
+  toStatus: TicketStatus;
+  changedBy: { id: number; name: string; role: Role } | null;
+  changedAt: string;
 }
 
 export async function getTicketDetail(ticketNumber: string): Promise<TicketDetail | null> {
@@ -367,6 +383,8 @@ export interface QueueQuery {
   itPriority?: string;
   categoryId?: number;
   owner?: string; // "unassigned" | "me" | user id
+  statusGroup?: string; // Lab 4 BR-35 — "active"
+  appearsResolved?: string; // Lab 4 BR-35 — "true"
   sortBy?: string;
   sortDir?: "asc" | "desc";
   page?: number;
@@ -428,10 +446,18 @@ export interface StaffTicket {
   owner: { id: number; name: string; role: Role } | null;
   requesterResolvedAt: string | null;
   allowedTransitions: TicketStatus[];
+  // Lab 4 (api-spec.md §2.1)
+  version: number;
+  resolvedAt: string | null;
+  resolution: { canResolve: boolean; blockers: ResolutionBlocker[] };
+  actionCounts: { total: number; open: number; completed: number; cancelled: number };
+  statusHistory: StatusHistoryEntry[];
   attachments: AttachmentInfo[];
   createdAt: string;
   updatedAt: string;
 }
+
+export type ResolutionBlocker = "OWNER_REQUIRED" | "NO_COMPLETED_ACTION" | "OPEN_ACTIONS" | "FOLLOW_UP_PENDING";
 
 const staffPath = (ticketNumber: string, suffix = "") => `/api/staff/tickets/${encodeURIComponent(ticketNumber)}${suffix}`;
 
@@ -444,20 +470,24 @@ export async function getStaffTicket(ticketNumber: string): Promise<StaffTicket 
   }
 }
 
-export async function claimTicket(ticketNumber: string): Promise<StaffTicket> {
-  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/claim"), { method: "POST" });
+// Lab 4 BR-25 — every workflow change carries the version the user was looking at.
+export async function claimTicket(ticketNumber: string, expectedVersion?: number): Promise<StaffTicket> {
+  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/claim"), { method: "POST", body: JSON.stringify({ expectedVersion }) });
 }
 
-export async function setTicketOwner(ticketNumber: string, ownerId: number | null): Promise<StaffTicket> {
-  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/owner"), { method: "PATCH", body: JSON.stringify({ ownerId }) });
+export async function setTicketOwner(ticketNumber: string, ownerId: number | null, expectedVersion?: number): Promise<StaffTicket> {
+  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/owner"), { method: "PATCH", body: JSON.stringify({ ownerId, expectedVersion }) });
 }
 
-export async function setItPriority(ticketNumber: string, itPriority: Priority): Promise<StaffTicket> {
-  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/it-priority"), { method: "PATCH", body: JSON.stringify({ itPriority }) });
+export async function setItPriority(ticketNumber: string, itPriority: Priority, expectedVersion?: number): Promise<StaffTicket> {
+  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/it-priority"), {
+    method: "PATCH",
+    body: JSON.stringify({ itPriority, expectedVersion }),
+  });
 }
 
-export async function setTicketStatus(ticketNumber: string, status: TicketStatus): Promise<StaffTicket> {
-  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/status"), { method: "PATCH", body: JSON.stringify({ status }) });
+export async function setTicketStatus(ticketNumber: string, status: TicketStatus, expectedVersion?: number): Promise<StaffTicket> {
+  return apiFetch<StaffTicket>(staffPath(ticketNumber, "/status"), { method: "PATCH", body: JSON.stringify({ status, expectedVersion }) });
 }
 
 export async function getInternalNotes(ticketNumber: string): Promise<Entry[]> {
@@ -504,4 +534,117 @@ export async function updateUser(id: number, input: Partial<Pick<AdminUser, "nam
 
 export async function setInitialPassword(id: number, initialPassword: string): Promise<AdminUser> {
   return apiFetch<AdminUser>(`/api/admin/users/${id}/initial-password`, { method: "POST", body: JSON.stringify({ initialPassword }) });
+}
+
+// -----------------------------------------------------------------------------
+// Lab 4 Issue 4 — Actions Taken (docs/lab-04/api-spec.md §1)
+// -----------------------------------------------------------------------------
+export type ActionStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+
+export interface ActionTaken {
+  id: number;
+  ticketId: number;
+  actionAt: string;
+  description: string;
+  result: string | null;
+  status: ActionStatus;
+  performedBy: { id: number; name: string; role: Role };
+  createdBy: { id: number; name: string; role: Role };
+  followUpRequired: boolean;
+  followUpNote: string | null;
+  attachmentNotes: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  cancelledAt: string | null;
+}
+
+export interface ActionInput {
+  actionAt?: string;
+  description?: string;
+  result?: string | null;
+  status?: ActionStatus;
+  performedById?: number;
+  followUpRequired?: boolean;
+  followUpNote?: string | null;
+  attachmentNotes?: string | null;
+}
+
+export async function getStaffActions(ticketNumber: string): Promise<ActionTaken[]> {
+  return apiFetch<ActionTaken[]>(staffPath(ticketNumber, "/actions"));
+}
+
+export async function getRequesterActions(ticketNumber: string): Promise<ActionTaken[]> {
+  return apiFetch<ActionTaken[]>(`/api/tickets/${encodeURIComponent(ticketNumber)}/actions`);
+}
+
+// BR-14 — clientRequestId is generated once per open form, so a retry after a network failure
+// returns the action that was already saved instead of creating a second one.
+export async function createAction(ticketNumber: string, input: ActionInput & { clientRequestId: string }): Promise<ActionTaken> {
+  return apiFetch<ActionTaken>(staffPath(ticketNumber, "/actions"), { method: "POST", body: JSON.stringify(input) });
+}
+
+// BR-13 — `version` is the one the user was editing; a newer one on the server is a 409.
+export async function updateAction(ticketNumber: string, actionId: number, input: ActionInput & { version: number }): Promise<ActionTaken> {
+  return apiFetch<ActionTaken>(staffPath(ticketNumber, `/actions/${actionId}`), { method: "PATCH", body: JSON.stringify(input) });
+}
+
+// -----------------------------------------------------------------------------
+// Lab 4 Issue 5 — dashboards (docs/lab-04/api-spec.md §3)
+// -----------------------------------------------------------------------------
+// `query` is the list-API query that reproduces the count (BR-34); null when no list exists.
+export interface Metric {
+  value: number;
+  query: Record<string, string> | null;
+}
+
+export interface TicketSummary {
+  ticketNumber: string;
+  summary: string;
+  currentStatus: TicketStatus;
+  itPriority: Priority;
+  updatedAt: string;
+  resolvedAt: string | null;
+  owner?: NamedRef | null;
+}
+
+export interface RequesterDashboardData {
+  generatedAt: string;
+  recentWindowDays: number;
+  metrics: Record<"open" | "waitingForMe" | "resolved" | "closed", Metric>;
+  needsAttention: TicketSummary[];
+  recentlyUpdated: TicketSummary[];
+  recentlyResolved: TicketSummary[];
+}
+
+export type StaffMetricKey =
+  | "new"
+  | "inProgress"
+  | "waitingForRequester"
+  | "reopened"
+  | "unassigned"
+  | "mine"
+  | "highPriority"
+  | "appearsResolved"
+  | "myOpenActions";
+
+export interface StaffDashboardData {
+  generatedAt: string;
+  recentWindowDays: number;
+  metrics: Record<StaffMetricKey, Metric>;
+  byStatus: Record<TicketStatus, number>;
+  byItPriority: Record<Priority, number>;
+  myOpenActions: { id: number; ticketNumber: string; ticketSummary: string; description: string; status: ActionStatus; actionAt: string }[];
+  urgent: TicketSummary[];
+  recentlyUpdated: TicketSummary[];
+  userCounts?: { requesters: number; itStaff: number; administrators: number; inactive: number }; // Administrators only
+}
+
+export async function getRequesterDashboard(): Promise<RequesterDashboardData> {
+  return apiFetch<RequesterDashboardData>("/api/dashboard/requester");
+}
+
+export async function getStaffDashboard(): Promise<StaffDashboardData> {
+  return apiFetch<StaffDashboardData>("/api/dashboard/staff");
 }

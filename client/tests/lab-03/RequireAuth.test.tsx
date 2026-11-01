@@ -29,12 +29,12 @@ describe("RequireAuth", () => {
       <RequireAuth roles={["IT_STAFF", "ADMIN"]}>
         <div>{body}</div>
       </RequireAuth>,
-      { user: REQUESTER_USER, route, path: route, extraRoutes: [{ path: "/tickets", element: <div>My Tickets Page</div> }] }
+      { user: REQUESTER_USER, route, path: route, extraRoutes: [{ path: "/dashboard", element: <div>Dashboard Page</div> }] }
     );
     expect(await screen.findByTestId("forbidden")).toBeInTheDocument();
     expect(screen.getByText(/you don't have access to this page/i)).toBeInTheDocument();
     expect(screen.queryByText(body)).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /go to my home page/i })).toHaveAttribute("href", "/tickets");
+    expect(screen.getByRole("link", { name: /go to my home page/i })).toHaveAttribute("href", "/dashboard"); // Lab 4 BR-38 home
   });
 
   it("renders the page for a permitted role", async () => {

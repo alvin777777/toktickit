@@ -12,6 +12,7 @@ function renderLogin() {
     route: "/login",
     path: "/login",
     extraRoutes: [
+      { path: "/dashboard", element: <div>Dashboard Page</div> }, // Lab 4 BR-38 — every role's home
       { path: "/tickets", element: <div>My Tickets Page</div> },
       { path: "/staff/queue", element: <div>Ticket Queue Page</div> },
       { path: "/admin/users", element: <div>Users Page</div> },
@@ -33,9 +34,10 @@ describe("Login", () => {
 
   // UI-01 (AC-01, FR-01) — each role lands on its own home.
   it.each([
-    [REQUESTER_USER, "My Tickets Page"],
-    [STAFF_USER, "Ticket Queue Page"],
-    [ADMIN_USER, "Users Page"],
+    // Lab 4 (BR-38): the role home is now the Dashboard for every role.
+    [REQUESTER_USER, "Dashboard Page"],
+    [STAFF_USER, "Dashboard Page"],
+    [ADMIN_USER, "Dashboard Page"],
   ])("signs in and navigates to the role home (%o)", async (authUser, home) => {
     const loginSpy = vi.spyOn(api, "login").mockResolvedValue(authUser);
     const user = userEvent.setup();
