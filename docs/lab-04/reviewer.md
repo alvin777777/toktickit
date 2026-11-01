@@ -14,13 +14,13 @@ sees only that Issue's diff. Merge order: #60 → #61 → #62 → #63 → #64 �
 | PR | Branch | Issue | Scope | Reviewer verdict |
 |----|--------|-------|-------|------------------|
 | [#60](https://github.com/alvin777777/toktickit/pull/60) | feature/17-lab4-spec | [#54](https://github.com/alvin777777/toktickit/issues/54) | Sprint 4 engineering contract (spec, API, UI, tests) | **Approved**, merged into `lab4-staging` |
-| [#61](https://github.com/alvin777777/toktickit/pull/61) | feature/18-actions-taken-foundation | [#55](https://github.com/alvin777777/toktickit/issues/55) | Migration + rollback, ActionTaken model, seed, Actions Taken APIs | Changes requested (1 × P2) → fixed in `b87bc40` → re-review requested |
+| [#61](https://github.com/alvin777777/toktickit/pull/61) | feature/18-actions-taken-foundation | [#55](https://github.com/alvin777777/toktickit/issues/55) | Migration + rollback, ActionTaken model, seed, Actions Taken APIs | Changes requested (1 × P2) → fixed in `b87bc40` → **approved** on re-review, merged |
 | [#62](https://github.com/alvin777777/toktickit/pull/62) | feature/19-ticket-workflow | [#56](https://github.com/alvin777777/toktickit/issues/56) | Resolution gate, status history, stale-update checks, flake fixes | **Approved**, merged |
 | [#63](https://github.com/alvin777777/toktickit/pull/63) | feature/20-actions-taken-ui | [#57](https://github.com/alvin777777/toktickit/issues/57) | Actions Taken UI (list, create, edit, requester view) | **Approved**, merged |
 | [#64](https://github.com/alvin777777/toktickit/pull/64) | feature/21-role-dashboards | [#58](https://github.com/alvin777777/toktickit/issues/58) | Requester + IT Staff / Admin dashboards, drill-down | **Approved**, merged |
 | [#65](https://github.com/alvin777777/toktickit/pull/65) | feature/22-final-hardening | [#59](https://github.com/alvin777777/toktickit/issues/59) | E2E, regression, screenshots, session probe, final docs | **Approved** (1 doc note), merged |
-| _integration PR_ | integration/lab4-stack → lab4-staging | — | Reviewed stack #61–#65 + the #61 fix + this record | see note below |
-| _release PR_ | lab4-staging → main | — | Lab 4 release | after the integration PR |
+| [#66](https://github.com/alvin777777/toktickit/pull/66) | integration/lab4-stack → lab4-staging | — | Reviewed stack #61–#65 + the #61 fix + this record | **Approved**, merged (`dd78f54`) |
+| _release PR_ | lab4-staging → main | — | Lab 4 release | see the release PR link in the submission |
 
 **Integration note.** All six PRs were approved or reviewed within a few minutes on 2026-10-31 and
 merged bottom-up into their *stacked bases* without deleting them, so GitHub did not retarget them
@@ -55,7 +55,24 @@ winner's action from the other ticket instead of `DUPLICATE_REQUEST`. Please che
 
 The finding was a real data-exposure bug that API-09 missed, because API-09 only raced on *one*
 Ticket. Full suites after the fix on the integrated branch: server 205/205, client 106/106, E2E 64
-passed / 14 desktop-only skips. Partner's re-review: _pending_.
+passed / 14 desktop-only skips.
+
+Partner's re-review (approved):
+> Re-reviewed the P2 fix on b87bc40. The replay helper is now used both before create and after
+> P2002, and returns 409 DUPLICATE_REQUEST when the existing action belongs to a different ticket;
+> same-ticket retries still return the original action. API-09b exercises concurrent cross-ticket
+> reuse and asserts one 201, one 409, and a single stored row. The prior finding is resolved.
+> Approved.
+
+### PR #66 — reviewer comment I received
+> Reviewed this as the staging integration PR. Its diff is the previously reviewed Lab 4 stack
+> (#61–#65) plus the #61 P2 fix and the expected reviewer/test-record updates; the #60 contract is
+> already in lab4-staging. The integration branch is CLEAN/MERGEABLE against lab4-staging, and the
+> documented full-stack evidence is server 205, client 106, E2E 64 passed / 14 skipped. I found no
+> additional integration issue. Approved.
+
+After the merge, `lab4-staging` was checked out and verified identical to the reviewed
+`integration/lab4-stack` tree; server 205/205 and client 106/106 re-ran green on it.
 
 ### PR #62 — reviewer comment I received
 > Reviewed the locked workflow, resolution gate, history serialization, and Lab 3 regression
