@@ -12,8 +12,12 @@ import { csrfOriginCheck } from "./middleware/csrf.js";
 import { staffRouter } from "./routes/staff.js";
 import { commentsRouter } from "./routes/comments.js";
 import { adminRouter } from "./routes/admin.js";
+import { requesterActionsRouter } from "./routes/actions.js";
 import { generateTicketNumber } from "./services/ticketNumber.js";
 import { isTicketStatus } from "./services/ticketWorkflow.js";
+import { requesterDetailInclude, serializeRequesterTicket } from "./services/ticketSerializers.js";
+import { WORKABLE_STATUSES } from "./services/actions.js";
+import { dashboardRouter } from "./routes/dashboard.js";
 
 // docs/lab-02/specification.md BR-16 — fixed attachment rules.
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
@@ -68,6 +72,16 @@ app.use("/api/staff", staffRouter);
 // Lab 3 Issue 4 — Public Comments + "appears resolved" (docs/lab-03/api-spec.md §3.6–§3.8)
 // ---------------------------------------------------------------------------
 app.use("/api/tickets", commentsRouter);
+
+// ---------------------------------------------------------------------------
+// Lab 4 Issue 2 — read-only Actions Taken for the owning Requester (docs/lab-04/api-spec.md §1.4)
+// ---------------------------------------------------------------------------
+app.use("/api/tickets", requesterActionsRouter);
+
+// ---------------------------------------------------------------------------
+// Lab 4 Issue 5 — role dashboards (docs/lab-04/api-spec.md §3)
+// ---------------------------------------------------------------------------
+app.use("/api/dashboard", dashboardRouter);
 
 // ---------------------------------------------------------------------------
 // Lab 3 Issue 5 — Administrator user management (docs/lab-03/api-spec.md §5)
@@ -178,6 +192,8 @@ app.post(
           description,
           requestedPriority: requestedPriority as "LOW" | "MEDIUM" | "HIGH",
           itPriority: requestedPriority as "LOW" | "MEDIUM" | "HIGH", // BR-24 — starts equal
+          // Lab 4 BR-24 — the first history row is written by the same (nested, atomic) insert.
+          statusHistory: { create: { fromStatus: null, toStatus: "NEW", changedById: req.user!.id } },
         },
       });
 
@@ -288,6 +304,8 @@ app.get("/api/tickets", ...asRequester, async (req: Request, res: Response) => {
 
   const currentStatus = String(req.query.currentStatus ?? "");
   if (isTicketStatus(currentStatus)) where.currentStatus = currentStatus; // BR-33 — every Lab 3 status
+  // Lab 4 BR-35 — dashboard drill-down; a specific status wins over the group.
+  else if (req.query.statusGroup === "active") where.currentStatus = { in: WORKABLE_STATUSES };
 
   try {
     const [items, totalItems] = await Promise.all([
@@ -353,26 +371,11 @@ app.get("/api/tickets/:ticketNumber", ...asRequester, async (req: Request, res: 
     // BR-22/AC-03 — "doesn't exist" and "not yours" return the identical 404.
     const ticket = await getPrisma().ticket.findFirst({
       where: { ticketNumber: req.params.ticketNumber, requesterId: req.user!.id },
-      include: { attachments: { orderBy: { uploadedAt: "asc" } }, owner: { select: { id: true, name: true } } },
+      include: requesterDetailInclude,
     });
     if (!ticket) return res.status(404).json({ error: "Ticket not found" });
 
-    res.status(200).json({
-      id: ticket.id,
-      ticketNumber: ticket.ticketNumber,
-      ticketDate: ticket.createdAt,
-      requesterId: ticket.requesterId,
-      categoryId: ticket.categoryId,
-      relatedSystemId: ticket.relatedSystemId,
-      summary: ticket.summary,
-      description: ticket.description,
-      requestedPriority: ticket.requestedPriority,
-      itPriority: ticket.itPriority,
-      currentStatus: ticket.currentStatus,
-      owner: ticket.owner, // { id, name } | null — FR-12
-      requesterResolvedAt: ticket.requesterResolvedAt,
-      attachments: ticket.attachments.map(serializeAttachment),
-    });
+    res.status(200).json(serializeRequesterTicket(ticket));
   } catch {
     res.status(500).json({ error: "Unable to load ticket" });
   }

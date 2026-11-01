@@ -1,4 +1,4 @@
-import { Priority, TicketStatus } from "../api.js";
+import { ActionStatus, Priority, TicketStatus } from "../api.js";
 
 // ui-spec.md §1.2 / §1.3 — the single shared badge maps used by every screen so My Tickets,
 // Requester Detail, the Queue, and IT Staff Detail can never drift apart.
@@ -61,6 +61,41 @@ export function PriorityBadge({ priority, label }: { priority: Priority; label?:
     <span className={`badge ${PRIORITY_BADGE[priority]}`}>
       {label ? `${label}: ` : ""}
       {priority}
+    </span>
+  );
+}
+
+// docs/lab-04/ui-spec.md §1.1 — Action Taken status and follow-up badges (text always present).
+export const ACTION_STATUS_LABEL: Record<ActionStatus, string> = {
+  PLANNED: "Planned",
+  IN_PROGRESS: "In Progress",
+  COMPLETED: "Completed",
+  CANCELLED: "Cancelled",
+};
+
+export const ACTION_STATUS_BADGE: Record<ActionStatus, string> = {
+  PLANNED: "bg-light text-dark border",
+  IN_PROGRESS: "text-white",
+  COMPLETED: "bg-success",
+  CANCELLED: "bg-secondary",
+};
+
+export function ActionStatusBadge({ status }: { status: ActionStatus }) {
+  return (
+    <span
+      className={`badge ${ACTION_STATUS_BADGE[status]}`}
+      style={status === "IN_PROGRESS" ? { backgroundColor: "#0B7A46" } : undefined}
+      data-testid="action-status"
+    >
+      {ACTION_STATUS_LABEL[status]}
+    </span>
+  );
+}
+
+export function FollowUpBadge() {
+  return (
+    <span className="badge text-white" style={{ backgroundColor: "#B7791F" }}>
+      Follow-up needed
     </span>
   );
 }

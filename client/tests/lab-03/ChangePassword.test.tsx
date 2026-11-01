@@ -10,7 +10,7 @@ function renderChangePassword(forced = true) {
     user: { ...REQUESTER_USER, mustChangePassword: forced },
     route: "/change-password",
     path: "/change-password",
-    extraRoutes: [{ path: "/tickets", element: <div>My Tickets Page</div> }],
+    extraRoutes: [{ path: "/dashboard", element: <div>Dashboard Page</div> }], // Lab 4 BR-38 home
   });
 }
 
@@ -82,7 +82,7 @@ describe("ChangePassword", () => {
     await user.type(screen.getByLabelText(/confirm new password/i), "Stronger123");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
-    expect(await screen.findByText("My Tickets Page")).toBeInTheDocument();
+    expect(await screen.findByText("Dashboard Page")).toBeInTheDocument();
     expect(spy).toHaveBeenCalledWith({ currentPassword: "Welcome123!", newPassword: "Stronger123", confirmPassword: "Stronger123" });
   });
 

@@ -9,6 +9,7 @@ import {
   getCategories,
   getComments,
   getRelatedSystems,
+  getRequesterActions,
   getTicketDetail,
   markRequesterResolved,
   postComment,
@@ -18,6 +19,8 @@ import { PRIORITY_BADGE, StatusBadge } from "../components/badges.js";
 import AttachmentSection from "../components/AttachmentSection.js";
 import EntryThread from "../components/EntryThread.js";
 import ConfirmBox from "../components/ConfirmBox.js";
+import StatusHistory from "../components/StatusHistory.js";
+import ActionsTaken from "../components/ActionsTaken.js";
 
 type LoadState = "loading" | "success" | "notFound" | "error";
 
@@ -281,11 +284,25 @@ export default function RequesterTicketDetail() {
         />
       </div>
 
+      <section className="mb-4" aria-labelledby="actions-taken-heading">
+        <h2 id="actions-taken-heading" className="h6">
+          Actions Taken
+        </h2>
+        <ActionsTaken readOnly load={() => getRequesterActions(ticket.ticketNumber)} />
+      </section>
+
       <AttachmentSection
         ticketNumber={ticket.ticketNumber}
         attachments={ticket.attachments}
         onChange={handleAttachmentsChange}
       />
+
+      <section className="mt-4" aria-labelledby="status-history-heading">
+        <h2 id="status-history-heading" className="h6">
+          Status history
+        </h2>
+        <StatusHistory entries={ticket.statusHistory} />
+      </section>
 
       <div className="mt-4">
         <h2 className="h6">Public Comments</h2>

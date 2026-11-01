@@ -1,3 +1,4 @@
+import { PrismaClient } from "@prisma/client";
 import { getPrisma } from "../src/prisma.js";
 import { hashPassword } from "../src/services/password.js";
 import { generateTicketNumber } from "../src/services/ticketNumber.js";
@@ -48,7 +49,8 @@ const USERS: { name: string; email: string; role: Role; isActive: boolean; mustC
 // Lab 3 Issue 3 — realistic Tickets across requesters, every status, both priorities, and
 // assigned/unassigned ownership (docs/lab-03/specification.md §7). Identified by (requester,
 // summary) so re-running the seed never duplicates them; Ticket Numbers come from the real
-// generator so they look like production data.
+// generator so they look like production data. Lookups take the oldest match (orderBy id) because
+// tests may create tickets with the same requester and summary.
 type Status =
   | "NEW" | "OPEN" | "IN_PROGRESS" | "WAITING_FOR_REQUESTER" | "RESOLVED" | "CLOSED" | "REOPENED" | "CANCELLED";
 type Pri = "LOW" | "MEDIUM" | "HIGH";
@@ -56,6 +58,7 @@ interface SeedTicket {
   requester: string; category: string; system: string; summary: string; description: string;
   requestedPriority: Pri; itPriority: Pri; status: Status; owner: string | null; daysAgo: number;
   requesterResolved?: boolean;
+  resolvedDaysAgo?: number; // Lab 4 — when a RESOLVED / CLOSED ticket entered RESOLVED (BR-23)
 }
 const T = {
   jen: "jennifer.anderson@toktickit.dev", mike: "michael.brown@toktickit.dev",
@@ -67,12 +70,12 @@ const SEED_TICKETS: SeedTicket[] = [
   { requester: T.jen, category: "Hardware", system: "Corporate Laptop", summary: "Laptop battery drains quickly", description: "My laptop battery is draining much faster than usual even when the system is idle. This started after last week's Windows update.", requestedPriority: "MEDIUM", itPriority: "MEDIUM", status: "IN_PROGRESS", owner: T.emily, daysAgo: 6 },
   { requester: T.sarah, category: "Network", system: "VPN", summary: "Cannot connect to VPN", description: "The VPN client shows 'authentication failed' every time I try to connect from home, even after resetting my password.", requestedPriority: "HIGH", itPriority: "HIGH", status: "OPEN", owner: T.kevin, daysAgo: 5 },
   { requester: T.david, category: "Software", system: "Email", summary: "Email not syncing on mobile", description: "Outlook on my phone stopped syncing new mail two days ago. Desktop Outlook works fine.", requestedPriority: "MEDIUM", itPriority: "LOW", status: "WAITING_FOR_REQUESTER", owner: T.emily, daysAgo: 5 },
-  { requester: T.jen, category: "Account and Access", system: "LEB2 App", summary: "New employee setup request", description: "Please create an LEB2 account for the new teaching assistant starting next Monday and add them to the CPE 334 course.", requestedPriority: "LOW", itPriority: "LOW", status: "RESOLVED", owner: T.lisa, daysAgo: 9 },
+  { requester: T.jen, category: "Account and Access", system: "LEB2 App", summary: "New employee setup request", description: "Please create an LEB2 account for the new teaching assistant starting next Monday and add them to the CPE 334 course.", requestedPriority: "LOW", itPriority: "LOW", status: "RESOLVED", owner: T.lisa, daysAgo: 9, resolvedDaysAgo: 1 },
   { requester: T.mike, category: "Hardware", system: "Printer", summary: "Printer keeps showing offline", description: "The 3rd floor printer shows as offline on every PC in the office although it prints a test page locally.", requestedPriority: "MEDIUM", itPriority: "LOW", status: "OPEN", owner: null, daysAgo: 4 },
   { requester: T.sarah, category: "Account and Access", system: "Grade Submission App", summary: "Request access to grade submission", description: "I need edit access to the grade submission app for section 31 before the mid-term deadline.", requestedPriority: "LOW", itPriority: "LOW", status: "NEW", owner: null, daysAgo: 3 },
   { requester: T.david, category: "Software", system: "Corporate Laptop", summary: "Outlook freezing intermittently", description: "Outlook freezes for 10-20 seconds several times an hour, usually when opening messages with large attachments.", requestedPriority: "HIGH", itPriority: "MEDIUM", status: "IN_PROGRESS", owner: T.kevin, daysAgo: 3 },
-  { requester: T.mike, category: "Hardware", system: "Corporate Laptop", summary: "Docking station not detected", description: "The docking station is no longer detected after the laptop wakes from sleep; a full reboot is needed each time.", requestedPriority: "MEDIUM", itPriority: "MEDIUM", status: "RESOLVED", owner: T.emily, daysAgo: 8, requesterResolved: true },
-  { requester: T.jen, category: "Software", system: "LEB2 App", summary: "Software installation request", description: "Please install the statistics package on my laptop for the research project; the license is already approved.", requestedPriority: "LOW", itPriority: "LOW", status: "CLOSED", owner: T.lisa, daysAgo: 12 },
+  { requester: T.mike, category: "Hardware", system: "Corporate Laptop", summary: "Docking station not detected", description: "The docking station is no longer detected after the laptop wakes from sleep; a full reboot is needed each time.", requestedPriority: "MEDIUM", itPriority: "MEDIUM", status: "RESOLVED", owner: T.emily, daysAgo: 8, requesterResolved: true, resolvedDaysAgo: 2 },
+  { requester: T.jen, category: "Software", system: "LEB2 App", summary: "Software installation request", description: "Please install the statistics package on my laptop for the research project; the license is already approved.", requestedPriority: "LOW", itPriority: "LOW", status: "CLOSED", owner: T.lisa, daysAgo: 12, resolvedDaysAgo: 10 },
   { requester: T.sarah, category: "Hardware", system: "Corporate Laptop", summary: "Multi-monitor not detected", description: "The second external monitor is not detected since this morning. Cable swap did not help.", requestedPriority: "MEDIUM", itPriority: "MEDIUM", status: "IN_PROGRESS", owner: T.emily, daysAgo: 2 },
   { requester: T.david, category: "Network", system: "Campus Wi-Fi", summary: "Wi-Fi drops in the seminar room", description: "Wi-Fi disconnects every few minutes in seminar room 4; other rooms on the floor are fine.", requestedPriority: "HIGH", itPriority: "HIGH", status: "REOPENED", owner: T.kevin, daysAgo: 7 },
   { requester: T.mike, category: "Account and Access", system: "Email", summary: "Shared mailbox access", description: "Please grant me access to the department shared mailbox so I can answer student questions during the exam period.", requestedPriority: "LOW", itPriority: "LOW", status: "CANCELLED", owner: null, daysAgo: 10 },
@@ -98,7 +101,7 @@ async function seedTickets() {
   let created = 0;
   for (const t of SEED_TICKETS) {
     const requesterId = users[t.requester];
-    const existing = await prisma.ticket.findFirst({ where: { requesterId, summary: t.summary } });
+    const existing = await prisma.ticket.findFirst({ where: { requesterId, summary: t.summary }, orderBy: { id: "asc" } });
     const createdAt = new Date(Date.now() - t.daysAgo * 24 * 60 * 60 * 1000);
     const data = {
       categoryId: categories[t.category],
@@ -109,6 +112,7 @@ async function seedTickets() {
       currentStatus: t.status,
       ownerId: t.owner ? users[t.owner] : null,
       requesterResolvedAt: t.requesterResolved ? new Date(createdAt.getTime() + 24 * 60 * 60 * 1000) : null,
+      resolvedAt: t.resolvedDaysAgo !== undefined ? new Date(Date.now() - t.resolvedDaysAgo * 24 * 60 * 60 * 1000) : null,
     };
     if (existing) {
       await prisma.ticket.update({ where: { id: existing.id }, data });
@@ -132,7 +136,7 @@ async function seedTickets() {
     { summary: "Email not syncing on mobile", requester: T.david, author: T.emily, body: "Please remove and re-add the account on your phone and let us know if sync resumes." },
   ];
   for (const e of entries) {
-    const ticket = await prisma.ticket.findFirst({ where: { requesterId: users[e.requester], summary: e.summary } });
+    const ticket = await prisma.ticket.findFirst({ where: { requesterId: users[e.requester], summary: e.summary }, orderBy: { id: "asc" } });
     if (!ticket) continue;
     const data = { ticketId: ticket.id, authorId: users[e.author], body: e.body };
     if (e.internal) {
@@ -142,6 +146,106 @@ async function seedTickets() {
     }
   }
   console.log(`Seeded ${entries.length} example comments/notes.`);
+
+  await seedActionsAndHistory(users);
+}
+
+// Lab 4 Issue 2 — Actions Taken (docs/lab-04/specification.md §7 seed): Tickets with zero, one, and
+// several actions; every action status; an action performed by someone other than the Ticket Owner
+// (BR-02); a completed action needing follow-up, which blocks resolution (BR-20d). Resolved / Closed
+// tickets only carry completed work, so the seed itself satisfies the gate. Keyed by
+// (ticket, description) so re-running never duplicates.
+type ActStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+interface SeedAction {
+  summary: string; requester: string; by: string; recordedBy?: string; hoursAfter: number; status: ActStatus;
+  description: string; result?: string; followUp?: string; attachmentNotes?: string;
+}
+const SEED_ACTIONS: SeedAction[] = [
+  // "Laptop battery drains quickly" — three actions by two staff members, one pending follow-up superseded by a planned step
+  { summary: "Laptop battery drains quickly", requester: T.jen, by: T.emily, hoursAfter: 2, status: "COMPLETED", description: "Ran the Windows battery health report remotely.", result: "Full-charge capacity is 71% of design capacity.", attachmentNotes: "See battery-report.pdf in Attachments" },
+  { summary: "Laptop battery drains quickly", requester: T.jen, by: T.kevin, recordedBy: T.emily, hoursAfter: 26, status: "COMPLETED", description: "Checked the warranty status with the vendor portal.", result: "Laptop is under warranty until March 2027.", followUp: "Order a replacement battery once the vendor confirms stock." },
+  { summary: "Laptop battery drains quickly", requester: T.jen, by: T.emily, hoursAfter: 24 * 8, status: "PLANNED", description: "Replace the battery at the IT counter (requester to bring the laptop)." },
+  // "Cannot connect to VPN" — one open action
+  { summary: "Cannot connect to VPN", requester: T.sarah, by: T.kevin, hoursAfter: 3, status: "IN_PROGRESS", description: "Pushing the new root certificate to the requester's laptop via MDM.", attachmentNotes: "Error screenshot vpn-error.png attached by the requester" },
+  // Resolved / Closed tickets — completed work only
+  { summary: "New employee setup request", requester: T.jen, by: T.lisa, hoursAfter: 20, status: "COMPLETED", description: "Created the LEB2 account and enrolled it in CPE 334.", result: "TA can sign in; course appears on the dashboard." },
+  { summary: "Docking station not detected", requester: T.mike, by: T.emily, hoursAfter: 4, status: "COMPLETED", description: "Updated the dock firmware from v2.1 to v2.4.", result: "Dock now detected after sleep on 5/5 attempts.", attachmentNotes: "See dock-firmware.png" },
+  { summary: "Docking station not detected", requester: T.mike, by: T.kevin, hoursAfter: 30, status: "COMPLETED", description: "Disabled USB selective suspend in the power plan.", result: "No disconnects during a full working day." },
+  { summary: "Software installation request", requester: T.jen, by: T.lisa, hoursAfter: 6, status: "COMPLETED", description: "Installed the statistics package with the approved licence key.", result: "Package opens and the licence is activated." },
+  // Cancelled ticket — its open work was cancelled with it (BR-11)
+  { summary: "Shared mailbox access", requester: T.mike, by: T.lisa, hoursAfter: 5, status: "CANCELLED", description: "Requested approval from the department head for mailbox access." },
+  // Reopened ticket — earlier fix completed, new investigation planned by a different staff member
+  { summary: "Wi-Fi drops in the seminar room", requester: T.david, by: T.kevin, hoursAfter: 5, status: "COMPLETED", description: "Moved the seminar-room access point from channel 6 to channel 11.", result: "Drops stopped for two days, then returned." },
+  { summary: "Wi-Fi drops in the seminar room", requester: T.david, by: T.lisa, recordedBy: T.kevin, hoursAfter: 24 * 6, status: "PLANNED", description: "Run a Wi-Fi site survey in seminar room 4 during a lecture." },
+  // Latest completed action needs follow-up → Resolve is blocked (FOLLOW_UP_PENDING)
+  { summary: "Grade export produces an empty file", requester: T.sarah, by: T.lisa, hoursAfter: 8, status: "COMPLETED", description: "Reproduced the empty export for section 2 and cleared the export cache.", result: "Export still empty for section 2 only.", followUp: "Escalate to the Grade Submission App vendor with the export log." },
+];
+
+async function seedActionsAndHistory(users: Record<string, number>) {
+  const prisma = getPrisma();
+  const HOUR = 60 * 60 * 1000;
+  for (const a of SEED_ACTIONS) {
+    const ticket = await prisma.ticket.findFirst({ where: { requesterId: users[a.requester], summary: a.summary }, orderBy: { id: "asc" } });
+    if (!ticket) continue;
+    const actionAt = new Date(ticket.createdAt.getTime() + a.hoursAfter * HOUR);
+    const data = {
+      actionAt,
+      status: a.status,
+      result: a.result ?? null,
+      performedById: users[a.by],
+      createdById: users[a.recordedBy ?? a.by],
+      followUpRequired: Boolean(a.followUp),
+      followUpNote: a.followUp ?? null,
+      attachmentNotes: a.attachmentNotes ?? null,
+      completedAt: a.status === "COMPLETED" ? actionAt : null,
+      cancelledAt: a.status === "CANCELLED" ? actionAt : null,
+    };
+    const existing = await prisma.actionTaken.findFirst({ where: { ticketId: ticket.id, description: a.description } });
+    if (existing) await prisma.actionTaken.update({ where: { id: existing.id }, data });
+    else await prisma.actionTaken.create({ data: { ...data, ticketId: ticket.id, description: a.description } });
+  }
+  console.log(`Seeded ${SEED_ACTIONS.length} actions taken.`);
+
+  // BR-24 — every seeded Ticket has a history that ends in its seeded status: created → NEW, then
+  // the move to its current status (by its owner). If the seed reset a status that someone changed,
+  // one corrective row is appended; a second run therefore adds nothing.
+  for (const t of SEED_TICKETS) {
+    const ticket = await prisma.ticket.findFirst({ where: { requesterId: users[t.requester], summary: t.summary }, orderBy: { id: "asc" } });
+    if (!ticket) continue;
+    const history = await prisma.ticketStatusHistory.findMany({ where: { ticketId: ticket.id }, orderBy: [{ changedAt: "asc" }, { id: "asc" }] });
+    const changedById = t.owner ? users[t.owner] : null;
+    if (history.length === 0) {
+      await prisma.ticketStatusHistory.create({ data: { ticketId: ticket.id, fromStatus: null, toStatus: "NEW", changedAt: ticket.createdAt } });
+      if (t.status !== "NEW") {
+        await prisma.ticketStatusHistory.create({
+          data: { ticketId: ticket.id, fromStatus: "NEW", toStatus: t.status, changedById, changedAt: new Date(ticket.createdAt.getTime() + HOUR) },
+        });
+      }
+    } else if (history[history.length - 1].toStatus !== t.status) {
+      await prisma.ticketStatusHistory.create({
+        data: { ticketId: ticket.id, fromStatus: history[history.length - 1].toStatus, toStatus: t.status, changedById: null },
+      });
+    }
+  }
+  console.log(`Seeded status history for ${SEED_TICKETS.length} tickets.`);
+}
+
+// Two test files run the seed at the same time (Lab 3 MIG-04, Lab 4 MIG-06); its find-then-create
+// steps are only idempotent when runs don't overlap. A session advisory lock on a dedicated
+// single-connection client serialises them (a pooled client could take and release it on different
+// connections).
+const SEED_LOCK = 334_004;
+async function withSeedLock(run: () => Promise<void>) {
+  const url = new URL(process.env.DATABASE_URL!);
+  url.searchParams.set("connection_limit", "1");
+  const lock = new PrismaClient({ datasources: { db: { url: url.toString() } } });
+  try {
+    await lock.$queryRaw`SELECT pg_advisory_lock(${SEED_LOCK})::text`;
+    await run();
+  } finally {
+    await lock.$queryRaw`SELECT pg_advisory_unlock(${SEED_LOCK})::text`.catch(() => {});
+    await lock.$disconnect();
+  }
 }
 
 async function main() {
@@ -179,7 +283,7 @@ async function main() {
   await seedTickets();
 }
 
-main()
+withSeedLock(main)
   .catch((e) => {
     console.error(e);
     process.exit(1);

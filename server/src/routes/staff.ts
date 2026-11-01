@@ -1,9 +1,12 @@
 import { Router, Request, Response } from "express";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, TicketStatus } from "@prisma/client";
 import { getPrisma } from "../prisma.js";
 import { asStaff } from "../middleware/auth.js";
 import { TICKET_STATUSES, allowedTransitions, canTransition, isPriority, isTerminal, isTicketStatus } from "../services/ticketWorkflow.js";
 import { authorSelect, serializeEntry, serializeStaffTicket, staffDetailInclude, validateEntryBody } from "../services/ticketSerializers.js";
+import { staffActionsRouter } from "./actions.js";
+import { WORKABLE_STATUSES, resolutionBlockers } from "../services/actions.js";
+import { HttpError, sendError } from "../services/httpError.js";
 
 // Lab 3 Issue 3 — IT Staff endpoints (docs/lab-03/api-spec.md §4). Every route is guarded by
 // asStaff (requireAuth → requirePasswordChanged → requireRole IT_STAFF|ADMIN) before any lookup,
@@ -60,6 +63,9 @@ staffRouter.get("/tickets", async (req: Request, res: Response) => {
     ];
   }
   if (isTicketStatus(req.query.status)) where.currentStatus = req.query.status;
+  // Lab 4 BR-35 — dashboard drill-down filters; a specific status wins over the group.
+  else if (req.query.statusGroup === "active") where.currentStatus = { in: WORKABLE_STATUSES };
+  if (req.query.appearsResolved === "true") where.requesterResolvedAt = { not: null };
   if (isPriority(req.query.itPriority)) where.itPriority = req.query.itPriority;
   const categoryId = Number(req.query.categoryId);
   if (Number.isInteger(categoryId) && categoryId > 0) where.categoryId = categoryId;
@@ -72,7 +78,11 @@ staffRouter.get("/tickets", async (req: Request, res: Response) => {
   }
 
   try {
-    const [items, totalItems, all, unassigned, mine] = await Promise.all([
+    // One REPEATABLE READ snapshot for the page and every count: separate statements under the
+    // default READ COMMITTED could each see a different set of tickets when others are being created,
+    // so totalItems and counts.all disagreed (seen once Lab 4's parallel tests ran; BR-34 of Lab 4
+    // relies on dashboard counts equalling list totals).
+    const [items, totalItems, all, unassigned, mine] = await prisma.$transaction([
       prisma.ticket.findMany({
         where,
         // Enum columns sort in declaration order in Postgres (LOW < MEDIUM < HIGH; BR-25 order for
@@ -86,7 +96,7 @@ staffRouter.get("/tickets", async (req: Request, res: Response) => {
       prisma.ticket.count(),
       prisma.ticket.count({ where: { ownerId: null } }),
       prisma.ticket.count({ where: { ownerId: me } }),
-    ]);
+    ], { isolationLevel: "RepeatableRead" });
 
     res.status(200).json({
       items,
@@ -124,10 +134,6 @@ async function loadTicket(ticketNumber: string) {
   return getPrisma().ticket.findUnique({ where: { ticketNumber }, include: staffDetailInclude });
 }
 
-function terminalConflict(res: Response) {
-  return res.status(409).json({ error: "This ticket is closed or cancelled.", code: "TICKET_TERMINAL" });
-}
-
 // §4.3
 staffRouter.get("/tickets/:ticketNumber", async (req: Request, res: Response) => {
   try {
@@ -139,107 +145,153 @@ staffRouter.get("/tickets/:ticketNumber", async (req: Request, res: Response) =>
   }
 });
 
-// §4.4 — Claim (BR-26/BR-27/BR-28)
-staffRouter.post("/tickets/:ticketNumber/claim", async (req: Request, res: Response) => {
-  try {
-    const prisma = getPrisma();
-    const ticket = await loadTicket(req.params.ticketNumber);
-    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
-    if (isTerminal(ticket.currentStatus)) return terminalConflict(res);
-    // BR-27 / AC-35 — first claim wins. The ownership test and the write are one conditional
-    // UPDATE (ownerId IS NULL, or already mine), so two simultaneous claims cannot both succeed
-    // (review on PR #42).
-    const claimed = await prisma.ticket.updateMany({
-      where: { id: ticket.id, OR: [{ ownerId: null }, { ownerId: req.user!.id }], currentStatus: { notIn: ["CLOSED", "CANCELLED"] } },
-      data: { ownerId: req.user!.id, ...(ticket.currentStatus === "NEW" ? { currentStatus: "OPEN" } : {}) },
-    });
-    if (claimed.count === 0) {
-      const current = await loadTicket(req.params.ticketNumber);
-      if (current && isTerminal(current.currentStatus)) return terminalConflict(res);
-      return res.status(409).json({
-        error: `This ticket is already owned by ${current?.owner?.name ?? "another user"}.`,
-        code: "ALREADY_ASSIGNED",
-      });
-    }
-    const updated = await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id }, include: staffDetailInclude });
-    res.status(200).json(serializeStaffTicket(updated));
-  } catch {
-    res.status(500).json({ error: "Unable to claim ticket" });
-  }
-});
+// ---------------------------------------------------------------------------
+// Lab 4 Issue 3 — every workflow change (claim, owner, IT Priority, status) runs in one transaction
+// that locks the Ticket row first (docs/lab-04/specification.md BR-26), checks the optional
+// `expectedVersion` (BR-25), writes, bumps `version`, and appends status history (BR-24). Locking
+// replaces Lab 3's conditional updateMany for claim: the second of two racing claims now waits for
+// the first and then sees the owner, so it still gets ALREADY_ASSIGNED (L3 AC-35).
+// ---------------------------------------------------------------------------
+type Tx = Prisma.TransactionClient;
 
-// §4.5 — Assign / reassign / unassign (BR-23/BR-26/BR-28/BR-29)
-staffRouter.patch("/tickets/:ticketNumber/owner", async (req: Request, res: Response) => {
+async function lockTicket(tx: Tx, ticketNumber: string) {
+  const rows = await tx.$queryRaw<{ id: number }[]>`SELECT id FROM "Ticket" WHERE "ticketNumber" = ${ticketNumber} FOR UPDATE`;
+  if (!rows[0]) throw new HttpError(404, { error: "Ticket not found" });
+  return tx.ticket.findUniqueOrThrow({ where: { id: rows[0].id }, include: staffDetailInclude });
+}
+
+type LockedTicket = Awaited<ReturnType<typeof lockTicket>>;
+
+function checkVersion(ticket: LockedTicket, expected: unknown) {
+  if (expected === undefined || expected === null) return; // optional for Lab 3 clients (BR-25)
+  if (!Number.isInteger(expected)) {
+    throw new HttpError(400, { error: "Invalid version", fields: { expectedVersion: "Version must be a whole number." } });
+  }
+  if (ticket.version !== expected) {
+    throw new HttpError(409, {
+      error: "Someone else updated this ticket. Review the latest values and try again.",
+      code: "STALE_UPDATE",
+      current: serializeStaffTicket(ticket),
+    });
+  }
+}
+
+const terminalConflict = () => new HttpError(409, { error: "This ticket is closed or cancelled.", code: "TICKET_TERMINAL" });
+
+function recordStatus(tx: Tx, ticketId: number, fromStatus: TicketStatus, toStatus: TicketStatus, changedById: number) {
+  return tx.ticketStatusHistory.create({ data: { ticketId, fromStatus, toStatus, changedById } });
+}
+
+// Runs `change` against the locked Ticket and answers with the fresh staff Ticket.
+async function workflow(req: Request, res: Response, fallback: string, change: (tx: Tx, ticket: LockedTicket) => Promise<void>) {
+  try {
+    const updated = await getPrisma().$transaction(async (tx) => {
+      const ticket = await lockTicket(tx, req.params.ticketNumber);
+      checkVersion(ticket, req.body?.expectedVersion);
+      await change(tx, ticket);
+      return tx.ticket.findUniqueOrThrow({ where: { id: ticket.id }, include: staffDetailInclude });
+    });
+    res.status(200).json(serializeStaffTicket(updated));
+  } catch (err) {
+    sendError(res, err, fallback);
+  }
+}
+
+// §4.4 — Claim (L3 BR-26/BR-27/BR-28)
+staffRouter.post("/tickets/:ticketNumber/claim", (req: Request, res: Response) =>
+  workflow(req, res, "Unable to claim ticket", async (tx, ticket) => {
+    if (isTerminal(ticket.currentStatus)) throw terminalConflict();
+    if (ticket.ownerId === req.user!.id) return; // already mine — nothing to change
+    if (ticket.ownerId) {
+      throw new HttpError(409, { error: `This ticket is already owned by ${ticket.owner?.name ?? "another user"}.`, code: "ALREADY_ASSIGNED" });
+    }
+    const opens = ticket.currentStatus === "NEW";
+    await tx.ticket.update({
+      where: { id: ticket.id },
+      data: { ownerId: req.user!.id, version: { increment: 1 }, ...(opens ? { currentStatus: "OPEN" } : {}) },
+    });
+    if (opens) await recordStatus(tx, ticket.id, "NEW", "OPEN", req.user!.id);
+  })
+);
+
+// §4.5 — Assign / reassign / unassign (L3 BR-23/BR-26/BR-28/BR-29)
+staffRouter.patch("/tickets/:ticketNumber/owner", (req: Request, res: Response) => {
   const raw = req.body?.ownerId;
   if (raw !== null && !(Number.isInteger(raw) && raw > 0)) {
     return res.status(400).json({ error: "Invalid owner", fields: { ownerId: "Select an active IT Staff or Administrator." } });
   }
-  try {
-    const prisma = getPrisma();
-    const ticket = await loadTicket(req.params.ticketNumber);
-    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
-    if (isTerminal(ticket.currentStatus)) return terminalConflict(res);
-
+  return workflow(req, res, "Unable to update ticket owner", async (tx, ticket) => {
+    if (isTerminal(ticket.currentStatus)) throw terminalConflict();
     if (raw === null) {
       if (ticket.currentStatus === "RESOLVED") {
-        return res.status(409).json({ error: "A resolved ticket must keep its owner.", code: "OWNER_REQUIRED" });
+        throw new HttpError(409, { error: "A resolved ticket must keep its owner.", code: "OWNER_REQUIRED" });
       }
     } else {
-      const assignee = await prisma.user.findUnique({ where: { id: raw } });
+      const assignee = await tx.user.findUnique({ where: { id: raw } });
       if (!assignee || !assignee.isActive || assignee.role === "REQUESTER") {
-        return res.status(400).json({ error: "Invalid owner", fields: { ownerId: "Select an active IT Staff or Administrator." } });
+        throw new HttpError(400, { error: "Invalid owner", fields: { ownerId: "Select an active IT Staff or Administrator." } });
       }
     }
-    const updated = await prisma.ticket.update({
+    const opens = raw !== null && ticket.currentStatus === "NEW";
+    await tx.ticket.update({
       where: { id: ticket.id },
-      data: { ownerId: raw, ...(raw !== null && ticket.currentStatus === "NEW" ? { currentStatus: "OPEN" } : {}) },
-      include: staffDetailInclude,
+      data: { ownerId: raw, version: { increment: 1 }, ...(opens ? { currentStatus: "OPEN" } : {}) },
     });
-    res.status(200).json(serializeStaffTicket(updated));
-  } catch {
-    res.status(500).json({ error: "Unable to update ticket owner" });
-  }
+    if (opens) await recordStatus(tx, ticket.id, "NEW", "OPEN", req.user!.id);
+  });
 });
 
-// §4.6 — IT Priority (BR-24/BR-28)
-staffRouter.patch("/tickets/:ticketNumber/it-priority", async (req: Request, res: Response) => {
+// §4.6 — IT Priority (L3 BR-24/BR-28)
+staffRouter.patch("/tickets/:ticketNumber/it-priority", (req: Request, res: Response) => {
   const itPriority = req.body?.itPriority;
   if (!isPriority(itPriority)) {
     return res.status(400).json({ error: "Invalid IT priority", fields: { itPriority: "IT priority must be LOW, MEDIUM, or HIGH." } });
   }
-  try {
-    const ticket = await loadTicket(req.params.ticketNumber);
-    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
-    if (isTerminal(ticket.currentStatus)) return terminalConflict(res);
-    const updated = await getPrisma().ticket.update({ where: { id: ticket.id }, data: { itPriority }, include: staffDetailInclude });
-    res.status(200).json(serializeStaffTicket(updated));
-  } catch {
-    res.status(500).json({ error: "Unable to update IT priority" });
-  }
+  return workflow(req, res, "Unable to update IT priority", async (tx, ticket) => {
+    if (isTerminal(ticket.currentStatus)) throw terminalConflict();
+    await tx.ticket.update({ where: { id: ticket.id }, data: { itPriority, version: { increment: 1 } } });
+  });
 });
 
-// §4.7 — Status transition (BR-29/BR-30)
-staffRouter.patch("/tickets/:ticketNumber/status", async (req: Request, res: Response) => {
+// §4.7 — Status transition: Lab 4 api-spec.md §2.3 (BR-18, BR-20, BR-23, BR-11, BR-24)
+staffRouter.patch("/tickets/:ticketNumber/status", (req: Request, res: Response) => {
   const status = req.body?.status;
   if (!isTicketStatus(status)) return res.status(400).json({ error: "Invalid status", fields: { status: "Unknown status." } });
-  try {
-    const ticket = await loadTicket(req.params.ticketNumber);
-    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+  return workflow(req, res, "Unable to update status", async (tx, ticket) => {
     if (!canTransition(ticket.currentStatus, status)) {
-      return res.status(409).json({
+      throw new HttpError(409, {
         error: `Cannot move from ${ticket.currentStatus} to ${status}.`,
         code: "INVALID_TRANSITION",
         allowed: allowedTransitions(ticket.currentStatus),
       });
     }
-    if (status === "RESOLVED" && !ticket.ownerId) {
-      return res.status(409).json({ error: "Assign a ticket owner before resolving.", code: "OWNER_REQUIRED" });
+    if (status === "RESOLVED") {
+      if (!ticket.ownerId) throw new HttpError(409, { error: "Assign a ticket owner before resolving.", code: "OWNER_REQUIRED" });
+      // BR-20 — evaluated on the locked row, so an action opened concurrently cannot slip past.
+      const blockers = resolutionBlockers(ticket, ticket.actions).filter((b) => b !== "OWNER_REQUIRED");
+      if (blockers.length > 0) {
+        throw new HttpError(409, { error: "This ticket cannot be resolved yet.", code: "RESOLUTION_BLOCKED", blockers });
+      }
     }
-    const updated = await getPrisma().ticket.update({ where: { id: ticket.id }, data: { currentStatus: status }, include: staffDetailInclude });
-    res.status(200).json(serializeStaffTicket(updated));
-  } catch {
-    res.status(500).json({ error: "Unable to update status" });
-  }
+    const now = new Date();
+    await tx.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        currentStatus: status,
+        version: { increment: 1 },
+        ...(status === "RESOLVED" ? { resolvedAt: now } : {}),
+        ...(status === "REOPENED" ? { resolvedAt: null } : {}), // BR-23
+      },
+    });
+    if (status === "CANCELLED") {
+      // BR-11 — no open work is left on a cancelled Ticket.
+      await tx.actionTaken.updateMany({
+        where: { ticketId: ticket.id, status: { in: ["PLANNED", "IN_PROGRESS"] } },
+        data: { status: "CANCELLED", cancelledAt: now, version: { increment: 1 } },
+      });
+    }
+    await recordStatus(tx, ticket.id, ticket.currentStatus, status, req.user!.id);
+  });
 });
 
 // §4.8 / §4.9 — Internal Notes (BR-35..BR-38). The asStaff guard on this router already rejected
@@ -274,5 +326,8 @@ staffRouter.post("/tickets/:ticketNumber/internal-notes", async (req: Request, r
     res.status(500).json({ error: "Unable to add internal note" });
   }
 });
+
+// Lab 4 Issue 2 — Actions Taken (docs/lab-04/api-spec.md §1.1–§1.3), behind the same asStaff guard.
+staffRouter.use("/tickets/:ticketNumber/actions", staffActionsRouter);
 
 export { TICKET_STATUSES };

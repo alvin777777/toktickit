@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { getPrisma } from "../../src/prisma.js";
 import { api, SEEDED, asAdmin, asRequester, asStaff, asStaffB } from "../helpers/auth.js";
+import { recordCompletedAction } from "../helpers/tickets.js";
 
 let requester: string;
 let staff: string;
@@ -159,6 +160,7 @@ describe("PATCH /api/staff/tickets/:ticketNumber/status", () => {
     expect(jump.body.allowed).toEqual(["OPEN", "CANCELLED"]);
 
     await api().post(`/api/staff/tickets/${tn}/claim`).set("Cookie", staff); // NEW → OPEN with owner
+    await recordCompletedAction(staff, tn); // Lab 4 BR-20 gate (BR-38): RESOLVED is offered once work is recorded
     for (const [to, allowedAfter] of [
       ["IN_PROGRESS", ["WAITING_FOR_REQUESTER", "RESOLVED", "CANCELLED"]],
       ["RESOLVED", ["CLOSED", "REOPENED"]],
@@ -184,6 +186,7 @@ describe("PATCH /api/staff/tickets/:ticketNumber/status", () => {
     expect(noOwner.body.code).toBe("OWNER_REQUIRED");
 
     await patch(tn, "owner", { ownerId: staffId });
+    await recordCompletedAction(staff, tn); // Lab 4 BR-20 gate (BR-38)
     expect((await setStatus(tn, "RESOLVED")).status).toBe(200);
     const unassign = await patch(tn, "owner", { ownerId: null });
     expect(unassign.status).toBe(409);
@@ -206,6 +209,7 @@ describe("PATCH /api/staff/tickets/:ticketNumber/status", () => {
     const tn2 = await newTicket("Close then reopen");
     await api().post(`/api/staff/tickets/${tn2}/claim`).set("Cookie", staff);
     await setStatus(tn2, "IN_PROGRESS");
+    await recordCompletedAction(staff, tn2); // Lab 4 BR-20 gate (BR-38)
     await setStatus(tn2, "RESOLVED");
     await setStatus(tn2, "CLOSED");
     const reopen = await setStatus(tn2, "REOPENED");

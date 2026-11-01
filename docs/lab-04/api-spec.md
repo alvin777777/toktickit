@@ -244,7 +244,20 @@ Roles: IT Staff, Administrator.
 
 ---
 
-## 4. Unchanged endpoints (regression)
+## 4. Session probe (hardening)
+
+### 4.1 GET /api/auth/session
+Public (no guard). The client's boot-time check of "who am I", replacing its use of
+`GET /api/auth/me`. Same session lookup as `requireAuth`, but an absent or dead session is a normal
+answer rather than an error, so opening the sign-in page leaves no failed request in the browser
+console (FR-18).
+- **200** `{ "user": <User> }` — valid session (including a user who must change their password)
+- **200** `{ "user": null }` — no cookie, unknown / expired session, or inactive user (a dead cookie is cleared)
+- **500** `{ "error": "Unable to verify session" }`
+
+`GET /api/auth/me` keeps its Lab 3 contract (401 when unauthenticated, L3 AC-07).
+
+## 5. Unchanged endpoints (regression)
 
 All endpoints listed in `docs/lab-03/specification.md` §8 keep their paths, roles, request and
 response shapes; the only additions are the optional fields above. `GET /api/health` remains

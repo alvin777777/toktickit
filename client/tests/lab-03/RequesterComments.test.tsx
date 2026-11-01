@@ -20,6 +20,8 @@ function ticket(overrides: Partial<api.TicketDetail> = {}): api.TicketDetail {
     currentStatus: "IN_PROGRESS",
     owner: { id: 7, name: "Emily Davis" },
     requesterResolvedAt: null,
+    resolvedAt: null, // Lab 4
+    statusHistory: [],
     attachments: [],
     ...overrides,
   };
@@ -36,6 +38,7 @@ function renderDetail() {
 // UI-17 (AC-11, AC-12) — Requester Ticket Detail additions (ui-spec.md §5).
 describe("RequesterTicketDetail — comments and appears-resolved", () => {
   beforeEach(() => {
+    vi.spyOn(api, "getRequesterActions").mockResolvedValue([]); // Lab 4 read-only Actions Taken section
     vi.spyOn(api, "getCategories").mockResolvedValue([{ id: 1, name: "Hardware" }]);
     vi.spyOn(api, "getRelatedSystems").mockResolvedValue([{ id: 1, name: "Corporate Laptop" }]);
   });
