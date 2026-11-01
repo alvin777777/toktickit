@@ -153,7 +153,7 @@ freshly migrated and seeded database (`toktickit_demo`).
 
 | Suite | Command | Result |
 |---|---|---|
-| Server — unit, API, SEC, MIG, PERF (Labs 1–4) | `cd server && npm test` | **26 files, 205 tests passed** (Lab 4: 67 in 6 files) |
+| Server — unit, API, SEC, MIG, PERF (Labs 1–4) | `cd server && npm test` | **26 files, 205 tests passed** (Labs 1–3: 150, Lab 4: 55 in 6 files) |
 | Client — UI, STYLE (Labs 1–4) | `cd client && npm test` | **18 files, 106 tests passed** (Lab 4: 31 in 4 files) |
 | E2E + responsive (Labs 2–4, desktop / tablet / mobile) | `cd e2e && npm test` | **64 passed, 14 skipped, 0 failed** |
 
